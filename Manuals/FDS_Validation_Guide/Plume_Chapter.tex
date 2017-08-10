@@ -248,7 +248,7 @@ The VTT experiments consisted of liquid fuel pan fires positioned in the middle 
 \begin{figure}[h!]
 \begin{center}
 \begin{tabular}{c}
-\includegraphics[width=4.0in]{SCRIPT_FIGURES/ScatterPlots/FDS_Plume_Temperature}
+\includegraphics[height=4.0in]{SCRIPT_FIGURES/ScatterPlots/FDS_Plume_Temperature}
 \end{tabular}
 \end{center}
 \caption[Summary of plume temperature predictions]
@@ -313,7 +313,7 @@ $Q^*$       & $\dot{Q}$~(kW) & $D^*$ (m)  & $\dx_5$ (m)  & $\dx_{10}$  & $\dx_{2
 
 \begin{figure}[!h]
 \begin{center}
-\includegraphics[width=4.5in]{SCRIPT_FIGURES/Heskestad/Flame_Height}
+\includegraphics[height=3in]{SCRIPT_FIGURES/Heskestad/Flame_Height}
 \end{center}
 \caption[Summary of flame height predictions, Heskestad correlation]
 {Comparison of FDS predictions of flame height from a 1~m square pan fire for $Q^*$ values ranging from
@@ -322,7 +322,9 @@ $Q^*$       & $\dot{Q}$~(kW) & $D^*$ (m)  & $\dx_5$ (m)  & $\dx_{10}$  & $\dx_{2
 \end{figure}
 
 \begin{figure}[!h]
-\includegraphics[width=\textwidth]{SCRIPT_FIGURES/Heskestad/Flame_Height2}
+\begin{center}
+\includegraphics[height=3in]{SCRIPT_FIGURES/Heskestad/Flame_Height2}
+\end{center}
 \caption[Flame height uncertainty, multiple correlations and flame height definitions]
 {Flame height predictions from various correlations compared with FDS predictions using two different flame height definitions.  Uncertainty (maximum variation) at $Q^*>1$ is $\pm$15~\%.  At $Q^*=0.1$, the uncertainty is approximately $\pm$65~\%. Correlation references: Steward \cite{Steward:1970}, Becker and Liang \cite{Becker:1978}, Cox and Chitty \cite{Cox:1985}, Heskestad \cite{SFPE:Heskestad}, Hasemi and Tokunaga \cite{Hasemi:1984}, Cetegen \cite{Cetegen:1984}, Delichatsios \cite{Delichatsios:1984}.}
 \label{Flame_Height2}
@@ -541,7 +543,7 @@ By examining movies of the simulation results we can see a qualitative differenc
 \includegraphics[height=2.15in]{SCRIPT_FIGURES/Sandia_Plumes/Sandia_H2_1m_Test35_U_zp3}
 \end{tabular*}
 \caption[Sandia 1~m hydrogen pool fire (Test 35) mean velocity profiles]
-{FDS predictions of mean velocity profiles for the Sandia 1~m hydrgoen pool fire experiment (Test 35). Results are shown for 6 cm, 3 cm, and 1.5 cm grid resolutions. The $z$ coordinate represents height above the pool; bottom row: $z=0.3$ m, middle row: $z=0.5$ m, and top row: $z=0.9$ m.}
+{FDS predictions of mean velocity profiles for the Sandia 1~m hydrogen pool fire experiment (Test 35). Results are shown for 6 cm, 3 cm, and 1.5 cm grid resolutions. The $z$ coordinate represents height above the pool; bottom row: $z=0.3$ m, middle row: $z=0.5$ m, and top row: $z=0.9$ m.}
 \label{Sandia_H2_1m_Test35_velocity}
 \end{figure}
 
@@ -564,7 +566,9 @@ By examining movies of the simulation results we can see a qualitative differenc
 \section{Purdue 7.1 cm Methane Flame}
 \label{Purdue_Flames}
 
-Figures \ref{Purdue_7p1_CH4_mixture_fraction}-\ref{Purdue_7p1_CH4_vel_rms} show results for the Purdue 7.1 cm methane flame \cite{Xin:CF2005} at two grid resolutions.
+Figures \ref{Purdue_7p1_CH4_mixture_fraction}-\ref{Purdue_7p1_CH4_vel_rms} show results for the Purdue 7.1 cm methane flame \cite{Xin:CF2005}.  Three sets of results are presented: two coarse (4 mm) cases and one fine (2 mm) case.  The fine mesh case is run with MPI on 16 meshes.  The coarse cases are run two ways: a single mesh case (dashed lines) and a 16 mesh case (dotted lines).  As should be the case, the single- and multi-mesh cases yield the same results.  This gives confidence in the domain decomposition strategy for open plume flows with FDS.
+
+The discrepancy at the centerline for mixture fraction and vertical velocity may be attributed to our not accounting for (1) the slight divergence of the flow at the burner exit  (7\si{\degree} \cite{Xin:CF2005}) and (2) the asymmetries and fluctuations in the burner exit and ambient environment.  Examination of the FDS output shows the solution remains very symmetric, preventing large gulps of air from penetrating the centerline of the plume, which would tend to smooth out the profiles near the center reducing the bimodal vertical velocity profile and centerline mixture fraction.
 
 \begin{figure}[!h]
 \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
@@ -645,6 +649,45 @@ Fig.~\ref{UMD_Line_Burner_methane_O2_p18_TC} shows measured and computational re
 {UMD Line Burner temperature contours, front (left) and side (right) views for the $\delta x = 0.625$ cm case.  Fuel (natural gas in this case) enters through the red surface.  The air with nitrogen dilution (to 18 vol.~\% O$_2$ in this case) enters through the blue surface.  The white ceramic flame holder is seen surrounding the red burner surface. The right side view corresponds to the profiles shown in Fig.~\ref{UMD_Line_Burner_methane_O2_p18_TC} through the center of the burner at different heights $z$ from the red burner surface.  Within the slice plane blue represents 20 \si{\degree}C, red 1500 \si{\degree}C. }
 \label{UMD_Line_Burner_temp_slcf}
 \end{figure}
+
+
+\clearpage
+
+\section{FM Vertical Wall Flame Experiments}
+
+Figure~\ref{FM_Vertical_Wall_Flame_temperature} displays the measured and predicted thermocouple (i.e. uncorrected) temperatures as a function of the normal distance, $y$, from the surface of a vertical, water-cooled burner. The measurements were made 771~mm from the base of the burner for propylene mass flow rates of 8.75, 11.85, 12.68, 17.05, 22.37, and 22.49 g/m$^2$/s. 
+
+Figure~\ref{FM_Vertical_Wall_Flame_soot_depth} displays the measured and predicted soot depth at heights of 365, 527, 771, 1022, and 1317~mm above the base of the burner for various fuel burning rates. The soot depth was measured by inserting glass rods through the flame, normal to the burner surface, for 2~s. The soot depth is the length of the blackened portion of the rod, taken to represent the average flame depth over the 2~s interval. For the FDS simulations, the soot depth was taken to be the distance from the burner surface where the soot mass fraction drops below 0.0025.
+
+\begin{figure}[p]
+\begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+\includegraphics[height=2.15in]{SCRIPT_FIGURES/FM_Vertical_Wall_Flames/Propylene_Temp_8p75} &
+\includegraphics[height=2.15in]{SCRIPT_FIGURES/FM_Vertical_Wall_Flames/Propylene_Temp_11p85} \\
+\includegraphics[height=2.15in]{SCRIPT_FIGURES/FM_Vertical_Wall_Flames/Propylene_Temp_12p68} &
+\includegraphics[height=2.15in]{SCRIPT_FIGURES/FM_Vertical_Wall_Flames/Propylene_Temp_17p05} \\
+\includegraphics[height=2.15in]{SCRIPT_FIGURES/FM_Vertical_Wall_Flames/Propylene_Temp_22p37} &
+\includegraphics[height=2.15in]{SCRIPT_FIGURES/FM_Vertical_Wall_Flames/Propylene_Temp_22p49}
+\end{tabular*}
+\caption[FM Vertical Wall Flame mean temperature profiles]
+{Uncorrected horizontal temperature profiles normal to the burner surface for fuel flow rates of 8.75, 11.85, 12.68, 17.05, 22.37, and 22.49 g/m$^2$/s.}
+\label{FM_Vertical_Wall_Flame_temperature}
+\end{figure}
+
+\begin{figure}[p]
+\begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+\includegraphics[height=2.15in]{SCRIPT_FIGURES/FM_Vertical_Wall_Flames/Soot_Depth_365} &
+\includegraphics[height=2.15in]{SCRIPT_FIGURES/FM_Vertical_Wall_Flames/Soot_Depth_527} \\
+\includegraphics[height=2.15in]{SCRIPT_FIGURES/FM_Vertical_Wall_Flames/Soot_Depth_771} &
+\includegraphics[height=2.15in]{SCRIPT_FIGURES/FM_Vertical_Wall_Flames/Soot_Depth_1022} \\
+\multicolumn{2}{c}{\includegraphics[height=2.15in]{SCRIPT_FIGURES/FM_Vertical_Wall_Flames/Soot_Depth_1317}}
+\end{tabular*}
+\caption[FM Vertical Wall Flame soot depth measurements]
+{Soot depth at heights of 365, 527, 771, 1022, and 1317 mm.}
+\label{FM_Vertical_Wall_Flame_soot_depth}
+\end{figure}
+
+
+
 
 
 

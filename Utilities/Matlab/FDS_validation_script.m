@@ -2,13 +2,13 @@
 % March 21, 2011
 % FDS_validation_script.m
 %
-% This script creates the plots that are included in the FDS Validation 
+% This script creates the plots that are included in the FDS Validation
 % Guide. It consists of calls to other scripts contained within the
-% subfolder called "scripts". 
+% subfolder called "scripts".
 %
 % The most important script is called dataplot. It reads the file called
 % FDS_validation_dataplot_inputs.csv and generates 1000+ plots. If you
-% want to process only some of these plots, comment out the other 
+% want to process only some of these plots, comment out the other
 % scripts and change the data plot line as follows:
 %
 % [saved_data,drange] = dataplot(Dataplot_Inputs_File,Validation_Dir,Manuals_Dir,[a:b]);
@@ -26,6 +26,7 @@
 close all
 clear all
 
+restoredefaultpath
 addpath 'scripts'
 
 % Scripts that run prior to dataplot
@@ -37,6 +38,9 @@ sippola_aerosol_deposition
 layer_height
 combine_csiro
 fm_datacenter_scatter
+LNG_Dispersion
+LNG_wind_profiles
+FM_Vertical_Wall_Flames
 
 % Dataplot and scatplot options
 
@@ -70,7 +74,7 @@ scatplot(saved_data, drange, ...
          'Histogram_Tex_Output', Histogram_Tex_Output, ...
          'NRC_Options', NRC_Options, ...
          'Append_To_Scatterplot_Title', Append_To_Scatterplot_Title)
-     
+
 % Miscellaneous other scripts for special cases
 
 backward_facing_step
@@ -86,5 +90,7 @@ pressure_coefficient
 VTT_Sprays
 fm_datacenter_veltest
 umd_line_burner
+% umd_line_burner_2
+% waterloo_methanol
 
 display('validation scripts completed successfully!')

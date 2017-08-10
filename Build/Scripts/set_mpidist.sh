@@ -5,6 +5,11 @@
 export MPITYPE=$1
 export MPIDIST=$2
 
+if [ "$MPIFORT" == "" ]; then
+  MPIFORT=mpifort
+fi
+export MPIFORT
+
 if [[ "$MPIDIST" == "" ]]; then
   if [[ "$MPITYPE" == "ib" ]]; then
     if [[ -d /shared/openmpi_64ib ]]; then
@@ -18,9 +23,13 @@ if [[ "$MPIDIST" == "" ]]; then
 fi
 
 if [[ "$MPIDIST" == "" ]]; then
-  echo "*** Warning: the MPI distribution location is not defined."
-  echo "Make sure that the MPIDIST_ETH and/or MPIDIST_IB environment"
-  echo "variables are defined in your startup file"
+  if [[ "$MPITYPE" == "ib" ]]; then
+    echo "*** Warning: the infiniband MPI library location is not defined."
+    echo "Make sure that MPIDIST_IB is defined in your startup file."
+  else
+    echo "*** Warning: the ethernet MPI library location is not defined."
+    echo "Make sure that MPIDIST_ETH is defined in your startup file."
+  fi
   exit
 fi
 

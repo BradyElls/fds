@@ -22,9 +22,7 @@ USE TYPES
 IMPLICIT NONE
 PRIVATE
 
-CHARACTER(50), DIMENSION(:), ALLOCATABLE :: FNDUMP
 INTEGER, PARAMETER :: ONE_INTEGER=1,ZERO_INTEGER=0
-INTEGER, DIMENSION(:), ALLOCATABLE :: LUDUMP
 REAL(EB), POINTER, DIMENSION(:,:,:) :: WFX=>NULL(),WFY=>NULL(),WFZ=>NULL()
 INTEGER :: N_DEVC_FILES
 CHARACTER(80) :: TCFORM
@@ -368,9 +366,15 @@ ALLOCATE(FN_BNDE(N_BNDE))
 ALLOCATE(LU_BNDE(N_BNDE))
 ALLOCATE(FN_BNDF(N_BNDF,NMESHES))
 ALLOCATE(LU_BNDF(N_BNDF,NMESHES))
+IF (CC_IBM) THEN
+   ALLOCATE(FN_BNDF_GEOM(N_BNDF,NMESHES))
+   ALLOCATE(LU_BNDF_GEOM(N_BNDF,NMESHES))
+   ALLOCATE(FN_BNDG(N_BNDF,NMESHES))
+   ALLOCATE(LU_BNDG(N_BNDF,NMESHES))
+ENDIF
 IF (TERRAIN_CASE) THEN
-  ALLOCATE(FN_BNDF_SLCF(N_BNDF,NMESHES))
-  ALLOCATE(LU_BNDF_SLCF(N_BNDF,NMESHES))
+   ALLOCATE(FN_BNDF_SLCF(N_BNDF,NMESHES))
+   ALLOCATE(LU_BNDF_SLCF(N_BNDF,NMESHES))
 ENDIF
 ALLOCATE(FN_SMOKE3D(4,NMESHES)) ! also allocate unit numbers and file names for the size files
 ALLOCATE(LU_SMOKE3D(4,NMESHES))
@@ -455,8 +459,16 @@ MESH_LOOP: DO NM=1,NMESHES
       LU_BNDF(N,NM) = GET_FILE_NUMBER()
       IF (NMESHES>1) THEN
          WRITE(FN_BNDF(N,NM),'(A,A,I4.4,A,I2.2,A)') TRIM(CHID),'_',NM,'_',N,'.bf'
+         IF (CC_IBM) THEN
+            WRITE(FN_BNDF_GEOM(N,NM),'(A,A,I4.4,A,I2.2,A)') TRIM(CHID),'_',NM,'_',N,'.gbf'
+            WRITE(FN_BNDG(N,NM),'(A,A,I4.4,A,I2.2,A)') TRIM(CHID),'_',NM,'_',N,'.be'
+         ENDIF
       ELSE
          WRITE(FN_BNDF(N,NM),'(A,A,I2.2,A)') TRIM(CHID),'_',N,'.bf'
+         IF (CC_IBM) THEN
+            WRITE(FN_BNDF_GEOM(N,NM),'(A,A,I4.4,A,I2.2,A)') TRIM(CHID),'_',N,'.gbf'
+            WRITE(FN_BNDG(N,NM),'(A,A,I4.4,A,I2.2,A)') TRIM(CHID),'_',N,'.be'
+         ENDIF
       ENDIF
    ENDDO
 
@@ -595,7 +607,7 @@ IF (N_DEVC_TIME>0) THEN
    DO I = 1,N_DEVC_FILES
       IF (APPEND) THEN
          OPEN(LU_DEVC(I),FILE=FN_DEVC(I),FORM='FORMATTED',STATUS='OLD')
-         CALL APPEND_FILE(LU_DEVC(I),2,T)
+         CALL APPEND_FILE(LU_DEVC(I),2,T_BEGIN+(T-T_BEGIN)*TIME_SHRINK_FACTOR)
       ELSE
          N_OUT = MIN(DEVC_COLUMN_LIMIT , N_DEVC_TIME-DEVC_COLUMN_LIMIT*(I-1))
          OPEN(LU_DEVC(I),FILE=FN_DEVC(I),FORM='FORMATTED',STATUS='REPLACE')
@@ -662,7 +674,7 @@ IF (N_CTRL>0) THEN
    DO I = 1,N_CTRL_FILES
       IF (APPEND) THEN
          OPEN(LU_CTRL(I),FILE=FN_CTRL(I),FORM='FORMATTED',STATUS='OLD')
-         CALL APPEND_FILE(LU_CTRL(I),2,T)
+         CALL APPEND_FILE(LU_CTRL(I),2,T_BEGIN+(T-T_BEGIN)*TIME_SHRINK_FACTOR)
       ELSE
          OPEN(LU_CTRL(I),FILE=FN_CTRL(I),FORM='FORMATTED',STATUS='REPLACE')
          N_OUT = MIN(CTRL_COLUMN_LIMIT, N_CTRL - CTRL_COLUMN_LIMIT * (I - 1))
@@ -690,7 +702,7 @@ ENDIF
 
 IF (APPEND) THEN
    OPEN(LU_HRR,FILE=FN_HRR,FORM='FORMATTED',STATUS='OLD')
-   CALL APPEND_FILE(LU_HRR,2,T)
+   CALL APPEND_FILE(LU_HRR,2,T_BEGIN+(T-T_BEGIN)*TIME_SHRINK_FACTOR)
 ELSE
    OPEN(LU_HRR,FILE=FN_HRR,FORM='FORMATTED',STATUS='REPLACE')
    WRITE(TCFORM,'(A,I4.4,A)') "(",12+N_ZONE_TMP,"(A,','),A)"
@@ -710,7 +722,7 @@ IF (N_ZONE>0) DEALLOCATE(P_ZONE_ID)
 IF_DUMP_SPECIES_INFO: IF (MASS_FILE) THEN
    IF (APPEND) THEN
       OPEN(LU_MASS,FILE=FN_MASS,FORM='FORMATTED',STATUS='OLD')
-      CALL APPEND_FILE(LU_MASS,2,T)
+      CALL APPEND_FILE(LU_MASS,2,T_BEGIN+(T-T_BEGIN)*TIME_SHRINK_FACTOR)
    ELSE
       OPEN(LU_MASS,FILE=FN_MASS,FORM='FORMATTED',STATUS='REPLACE')
       LABEL(1) = 'Time'
@@ -786,7 +798,7 @@ INTEGER, INTENT(IN) :: NM
 INTEGER :: IOR,IZERO,I,J,K,N,I1B,I2B,IW,NN,NF,IP,N_BNDF_POINTS
 INTEGER :: NTSL
 REAL(EB) :: TNOW
-CHARACTER(LEN=1024) :: SLICEPARMS, SLICELABEL
+CHARACTER(LEN=1024) :: SLICEPARMS, SLICELABEL, SLICEOFFSET
 TYPE(PATCH_TYPE), POINTER :: PA
 
 TNOW=SECOND()
@@ -810,13 +822,13 @@ ALLOCATE(M%ZPLT(0:KBAR),STAT=IZERO)
 CALL ChkMemErr('DUMP','ZPLT',IZERO)
 
 DO I=0,IBAR
-   M%XPLT(I) = M%X(I)
+   M%XPLT(I) = REAL(M%X(I),FB)
 ENDDO
 DO J=0,JBAR
-   M%YPLT(J) = M%Y(J)
+   M%YPLT(J) = REAL(M%Y(J),FB)
 ENDDO
 DO K=0,KBAR
-   M%ZPLT(K) = M%Z(K)
+   M%ZPLT(K) = REAL(M%Z(K),FB)
 ENDDO
 
 ! Initialize PLOT3D grid file (CHID.xyz)
@@ -969,15 +981,17 @@ DO N=1,M%N_SLCF
       ELSE
          IF (M%N_STRINGS+8>M%N_STRINGS_MAX) CALL RE_ALLOCATE_STRINGS(NM)
          M%N_STRINGS = M%N_STRINGS + 1
-         WRITE(M%STRING(M%N_STRINGS),'(A,1x,I6)') 'GEOM',0
+         WRITE(M%STRING(M%N_STRINGS),'(A,1x,I6)') 'SGEOM',0
          M%N_STRINGS = M%N_STRINGS + 1
          WRITE(M%STRING(M%N_STRINGS),'(1X,A)') TRIM(FN_SLCF_GEOM(N,NM))
       ENDIF
       M%N_STRINGS = M%N_STRINGS + 1
+      SLICEOFFSET = ''
+      IF(SL%SMV_OFFSET/=0.0_EB)WRITE(SLICEOFFSET,'(A,F10.4)')' $ ',SL%SMV_OFFSET
       IF (SL%ID/='null') THEN
-         WRITE(SLICELABEL,'(A,A,A)') ' %',TRIM(SL%ID),TRIM(SLICEPARMS)
+         WRITE(SLICELABEL,'(A,A,A,A,A,A)') ' # ',TRIM(SL%SLICETYPE),' %',TRIM(SL%ID),TRIM(SLICEPARMS),TRIM(SLICEOFFSET)
       ELSE
-         SLICELABEL=SLICEPARMS
+         WRITE(SLICELABEL,'(A,A,A,A)') ' # ',TRIM(SL%SLICETYPE),TRIM(SLICEPARMS),TRIM(SLICEOFFSET)
       ENDIF
       IF (SL%SLICETYPE=='STRUCTURED') THEN
          IF (.NOT.SL%TERRAIN_SLICE .AND. .NOT.SL%CELL_CENTERED) THEN
@@ -1104,7 +1118,7 @@ IF_BOUNDARY_FILES: IF (N_BNDF>0 .AND. .NOT.EVACUATION_ONLY(NM)) THEN
    IF (BNDF_TIME_INTEGRALS>0) THEN
       ALLOCATE(M%BNDF_TIME_INTEGRAL(N_BNDF_POINTS,BNDF_TIME_INTEGRALS),STAT=IZERO)
       CALL ChkMemErr('DUMP','BNDF_TIME_INTEGRAL',IZERO)
-      M%BNDF_TIME_INTEGRAL = 0._EB
+      M%BNDF_TIME_INTEGRAL = 0._FB
    ENDIF
 
 ENDIF IF_BOUNDARY_FILES
@@ -1256,7 +1270,7 @@ END SUBROUTINE INITIALIZE_MESH_DUMPS
 
 SUBROUTINE WRITE_SMOKEVIEW_FILE
 
-USE MATH_FUNCTIONS, ONLY: EVALUATE_RAMP,CROSS_PRODUCT,NORM2
+USE MATH_FUNCTIONS, ONLY: EVALUATE_RAMP,CROSS_PRODUCT
 USE MEMORY_FUNCTIONS, ONLY : CHKMEMERR
 USE COMP_FUNCTIONS, ONLY: SHUTDOWN
 USE GEOMETRY_FUNCTIONS, ONLY: INTERIOR
@@ -1377,6 +1391,18 @@ DO I=1,N_DEVC_FILES
    WRITE(LU_SMV,'(1X,A)') TRIM(FN_DEVC(I))
 ENDDO
 
+DO I=1,N_CTRL_FILES
+   WRITE(LU_SMV,'(/A)') 'CSVF'
+   WRITE(LU_SMV,'(1X,A)') 'ctrl'
+   WRITE(LU_SMV,'(1X,A)') TRIM(FN_CTRL(I))
+ENDDO
+
+IF (MASS_FILE) THEN
+   WRITE(LU_SMV,'(/A)') 'CSVF'
+   WRITE(LU_SMV,'(1X,A)') 'mass'
+   WRITE(LU_SMV,'(1X,A)') TRIM(FN_MASS)
+ENDIF
+
 ! Write out file names specified using CSVF
 
 DO N = 1, N_CSVF
@@ -1473,13 +1499,6 @@ IF (N_GEOMETRY>0) THEN
                                                      TRIM(GEOMI%SURF_ID)
       ENDIF
    END DO
-   WRITE(LU_SMV,'(/A,1X,I4)') 'CUTCELLS',1
-   WRITE(LU_SMV,'( I5)') MESHES(1)%N_CUTCELLS
-   IF (MESHES(1)%N_CUTCELLS>0) THEN
-      DO I = 0, (MESHES(1)%N_CUTCELLS-1)/15
-         WRITE(LU_SMV,'(1X,15(I7,1X))')(MESHES(1)%CUTCELL_LIST(J),J=15*I,MIN(15*(I+1),MESHES(1)%N_CUTCELLS)-1)
-      ENDDO
-   ENDIF
 ENDIF
 
 ! Write out info about geometry diagnostic file
@@ -1822,8 +1841,15 @@ DO N=1,N_DEVC
    WRITE(LU_SMV,'(1X,A,1X,A,1X,A)') TRIM(DV%ID),'%',TRIM(DV%QUANTITY)
    STATE_INDEX = 0
    IF (DV%INITIAL_STATE) STATE_INDEX = 1
-   WRITE(LU_SMV,'(6F12.5,2I3,A,A)') DV%X,DV%Y,DV%Z,ORIENTATION_VECTOR(1,DV%ORIENTATION_INDEX),&
-         ORIENTATION_VECTOR(2,DV%ORIENTATION_INDEX),ORIENTATION_VECTOR(3,DV%ORIENTATION_INDEX),STATE_INDEX,0,' % ',TRIM(PY%ID)
+   IF (DV%X1>-900000.0) THEN
+      WRITE(LU_SMV,'(6F12.5,2I3,A,6F12.5,A,A)') DV%X,DV%Y,DV%Z,ORIENTATION_VECTOR(1,DV%ORIENTATION_INDEX),&
+            ORIENTATION_VECTOR(2,DV%ORIENTATION_INDEX),ORIENTATION_VECTOR(3,DV%ORIENTATION_INDEX),STATE_INDEX,0,&
+            ' # ',DV%X1,DV%Y1,DV%Z1,DV%X2,DV%Y2,DV%Z2,&
+            ' % ',TRIM(PY%ID)
+   ELSE
+      WRITE(LU_SMV,'(6F12.5,2I3,A,A)') DV%X,DV%Y,DV%Z,ORIENTATION_VECTOR(1,DV%ORIENTATION_INDEX),&
+            ORIENTATION_VECTOR(2,DV%ORIENTATION_INDEX),ORIENTATION_VECTOR(3,DV%ORIENTATION_INDEX),STATE_INDEX,0,' % ',TRIM(PY%ID)
+   ENDIF
 ENDDO
 
 ! Write out level set slice file name (placeholder)
@@ -1838,49 +1864,38 @@ ENDIF
 
 ! Write BDNE info
 
-BNDE_FILE_LOOP: DO N=1,N_BNDE
+!BNDE_FILE_LOOP: DO N=1,N_BNDE
 
-   BE => BOUNDARY_ELEMENT_FILE(N)
+!   BE => BOUNDARY_ELEMENT_FILE(N)
 
-   WRITE(LU_SMV,'(/A)') 'BNDE'
-   WRITE(LU_SMV,'(1X,A)') FN_BNDE(N)
-   WRITE(LU_SMV,'(1X,A)') FN_GEOM(1)
-   WRITE(LU_SMV,'(1X,A)') TRIM(BE%SMOKEVIEW_LABEL(1:30))
-   WRITE(LU_SMV,'(1X,A)') TRIM(BE%SMOKEVIEW_BAR_LABEL(1:30))
-   WRITE(LU_SMV,'(1X,A)') TRIM(OUTPUT_QUANTITY(BE%INDEX)%UNITS(1:30))
+!   WRITE(LU_SMV,'(/A)') 'BNDE'
+!   WRITE(LU_SMV,'(1X,A)') FN_BNDE(N)
+!   WRITE(LU_SMV,'(1X,A)') FN_GEOM(1)
+!   WRITE(LU_SMV,'(1X,A)') TRIM(BE%SMOKEVIEW_LABEL(1:30))
+!   WRITE(LU_SMV,'(1X,A)') TRIM(BE%SMOKEVIEW_BAR_LABEL(1:30))
+!   WRITE(LU_SMV,'(1X,A)') TRIM(OUTPUT_QUANTITY(BE%INDEX)%UNITS(1:30))
 
-ENDDO BNDE_FILE_LOOP
+!ENDDO BNDE_FILE_LOOP
 
+IF (CC_IBM) THEN
+   DO N = 1, N_BNDF
 
-! Write out VERTEX info
+      BF => BOUNDARY_FILE(N)
 
-WRITE(LU_SMV,'(/A)') 'VERT'
-WRITE(LU_SMV,'(I8)') N_VERT
+      DO I = 1, NMESHES
 
-DO N=1,N_VERT
-   WRITE(LU_SMV,'(3F12.6)') VERTEX(N)%X,VERTEX(N)%Y,VERTEX(N)%Z
-ENDDO
+         WRITE(LU_SMV,'(/A)') 'BGEOM 0'
+         WRITE(LU_SMV,'(1X,A)') FN_BNDF_GEOM(N,I)
 
-
-! Write out FACET info
-
-WRITE(LU_SMV,'(/A)') 'FACE'
-WRITE(LU_SMV,'(I8)') N_FACE
-
-DO N=1,N_FACE
-   WRITE(LU_SMV,'(3I8,3F12.6,1X,A,1X,A)') FACET(N)%VERTEX, FACET(N)%NVEC, '%', TRIM(FACET(N)%SURF_ID)
-ENDDO
-
-
-!! Write out VOLUME info
-!
-!WRITE(LU_SMV,'(/A)') 'VOLU'
-!WRITE(LU_SMV,'(I5)') N_VOLU
-!
-!DO N=1,N_VOLU
-!   WRITE(LU_SMV,'(4I5)') VOLUME(N)%VERTEX
-!ENDDO
-
+         WRITE(LU_SMV,'(/A,2I6)') 'BNDE',I,1
+         WRITE(LU_SMV,'(1X,A)') FN_BNDG(N,I)
+         WRITE(LU_SMV,'(1X,A)') FN_BNDF_GEOM(N,I)
+         WRITE(LU_SMV,'(1X,A)') TRIM(BF%SMOKEVIEW_LABEL(1:30))
+         WRITE(LU_SMV,'(1X,A)') TRIM(BF%SMOKEVIEW_BAR_LABEL(1:30))
+         WRITE(LU_SMV,'(1X,A)') TRIM(OUTPUT_QUANTITY(BF%INDEX)%UNITS(1:30))
+      ENDDO
+   ENDDO
+ENDIF
 
 ENDIF MASTER_NODE_IF
 
@@ -2054,7 +2069,7 @@ MESH_LOOP: DO NM=1,NMESHES
       IF (OB%PROP_ID=='null') THEN
          TEMPCHAR=' '
       ELSE
-         TEMPCHAR=' % '//OB%PROP_ID
+         TEMPCHAR=' % '//TRIM(OB%PROP_ID)
       ENDIF
       IF (OB%TEXTURE(1)<=-998._EB) THEN
          WRITE(LU_SMV,'(6F14.5,I7,6I4,1X,A33)') OB%X1,OB%X2,OB%Y1,OB%Y2,OB%Z1,OB%Z2,OB%ORDINAL, &
@@ -2419,7 +2434,7 @@ USE SCRC, ONLY: SCARC_METHOD, SCARC_KRYLOV, SCARC_MULTIGRID, SCARC_SMOOTH, SCARC
 
 REAL(EB), INTENT(IN) :: DT
 INTEGER :: NM,I,NN,N,NR,NL,NS,ITMP
-CHARACTER(LABEL_LENGTH) :: QUANTITY,ODE_SOLVER,EXTINCTION_MODEL
+CHARACTER(LABEL_LENGTH) :: QUANTITY,ODE_SOLVER
 TYPE(SPECIES_MIXTURE_TYPE),POINTER :: SM=>NULL()
 
 ! Write out preliminary stuff to error file (unit 0)
@@ -2469,18 +2484,32 @@ WRITE(LU_OUTPUT,'(A,F8.1)')   '   Simulation Start Time (s)     ',T_BEGIN
 WRITE(LU_OUTPUT,'(A,F8.1)')   '   Simulation End Time (s)       ',(T_END-T_BEGIN) * TIME_SHRINK_FACTOR + T_BEGIN
 IF (LES) THEN
    WRITE(LU_OUTPUT,'(A)')     '   LES Calculation'
-   SELECT CASE (TURB_MODEL)
+   TURB_MODEL_SELECT: SELECT CASE (TURB_MODEL)
       CASE(CONSMAG)
-         WRITE(LU_OUTPUT,'(A,F7.2)')      '   Smagorinsky (C_SMAGORINSKY)    ',C_SMAGORINSKY
+         WRITE(LU_OUTPUT,'(A,F7.2)')      '   Eddy Viscosity:           Smagorinsky (C_SMAGORINSKY)                         ',&
+            C_SMAGORINSKY
       CASE(DYNSMAG)
-         WRITE(LU_OUTPUT,'(A)')           '   Dynamic Smagorinsky Model'
+         WRITE(LU_OUTPUT,'(A)')           '   Eddy Viscosity:           Dynamic Smagorinsky Model'
       CASE(DEARDORFF)
-         WRITE(LU_OUTPUT,'(A,F7.2)')      '   Deardorff Model (C_DEARDORFF)  ',C_DEARDORFF
+         WRITE(LU_OUTPUT,'(A,F7.2)')      '   Eddy Viscosity:           Deardorff Model (C_DEARDORFF)                       ',&
+            C_DEARDORFF
       CASE(VREMAN)
-         WRITE(LU_OUTPUT,'(A,F7.2)')      '   Vreman Model (C_VREMAN)        ',C_VREMAN
+         WRITE(LU_OUTPUT,'(A,F7.2)')      '   Eddy Viscosity:           Vreman Model (C_VREMAN)                             ',&
+            C_VREMAN
       CASE(RNG)
-         WRITE(LU_OUTPUT,'(A,F7.2,F7.2)') '   RNG Model (C_RNG,C_RNG_CUTOFF) ',C_RNG,C_RNG_CUTOFF
-   END SELECT
+         WRITE(LU_OUTPUT,'(A,F7.2,F7.2)') '   Eddy Viscosity:           RNG Model (C_RNG,C_RNG_CUTOFF)                      ',&
+            C_RNG,C_RNG_CUTOFF
+      CASE(WALE)
+         WRITE(LU_OUTPUT,'(A,F7.2)')      '   Eddy Viscosity:           WALE Model (C_WALE)                                 ',&
+            C_WALE
+   END SELECT TURB_MODEL_SELECT
+   NEAR_WALL_SELECT: SELECT CASE (NEAR_WALL_TURB_MODEL)
+      CASE DEFAULT
+         WRITE(LU_OUTPUT,'(A,F7.2)')      '   Near-wall Eddy Viscosity: Smagorinsky with Van Driest damping (C_SMAGORINSKY) ',&
+            C_SMAGORINSKY
+      CASE(WALE)
+         WRITE(LU_OUTPUT,'(A,F7.2)')      '   Near-wall Eddy Viscosity: WALE Model (C_WALE)  ',C_WALE
+   END SELECT NEAR_WALL_SELECT
    WRITE(LU_OUTPUT,'(A,F8.2)')   '   Turbulent Prandtl Number      ',PR
    WRITE(LU_OUTPUT,'(A,F8.2)')   '   Turbulent Schmidt Number      ',SC
 ENDIF
@@ -2544,9 +2573,9 @@ DO N=1,N_TRACKED_SPECIES
    WRITE(LU_OUTPUT,'(A,ES9.2)')  '                                 1000 K: ', K_RSQMW_Z(1000,N)/RSQ_MW_Z(N)
    WRITE(LU_OUTPUT,'(A,ES9.2)')  '                                 1500 K: ', K_RSQMW_Z(1500,N)/RSQ_MW_Z(N)
    WRITE(LU_OUTPUT,'(A,I4,A,ES9.2)')  '        Enthalpy (J/kg) Ambient, ',ITMP,' K: ', CPBAR_Z(ITMP,N)*TMPA
-   WRITE(LU_OUTPUT,'(A,ES9.2)')  '                                  500 K: ', CPBAR_Z(ITMP,N)*500._EB
-   WRITE(LU_OUTPUT,'(A,ES9.2)')  '                                 1000 K: ', CPBAR_Z(ITMP,N)*1000._EB
-   WRITE(LU_OUTPUT,'(A,ES9.2)')  '                                 1500 K: ', CPBAR_Z(ITMP,N)*1500._EB
+   WRITE(LU_OUTPUT,'(A,ES9.2)')  '                                  500 K: ', CPBAR_Z(500,N)*500._EB
+   WRITE(LU_OUTPUT,'(A,ES9.2)')  '                                 1000 K: ', CPBAR_Z(1000,N)*1000._EB
+   WRITE(LU_OUTPUT,'(A,ES9.2)')  '                                 1500 K: ', CPBAR_Z(1500,N)*1500._EB
    WRITE(LU_OUTPUT,'(A,I4,A,ES9.2)')  '    Spec. Heat (J/kg/K) Ambient, ',ITMP,' K: ', CP_Z(ITMP,N)
    WRITE(LU_OUTPUT,'(A,ES9.2)')  '                                  500 K: ', CP_Z( 500,N)
    WRITE(LU_OUTPUT,'(A,ES9.2)')  '                                 1000 K: ', CP_Z(1000,N)
@@ -2555,6 +2584,12 @@ DO N=1,N_TRACKED_SPECIES
    WRITE(LU_OUTPUT,'(A,ES9.2)')  '                                  500 K: ', D_Z( 500,N)
    WRITE(LU_OUTPUT,'(A,ES9.2)')  '                                 1000 K: ', D_Z(1000,N)
    WRITE(LU_OUTPUT,'(A,ES9.2)')  '                                 1500 K: ', D_Z(1500,N)
+   IF (ABS(G_F_Z(ITMP,N))>TWO_EPSILON_EB) THEN
+      WRITE(LU_OUTPUT,'(A,I4,A,ES9.2)')  '  Gibbs Energy (J/kmol) Ambient, ',ITMP,' K: ', 1.E6_EB*G_F_Z(ITMP,N)
+      WRITE(LU_OUTPUT,'(A,ES9.2)')  '                                  500 K: ', 1.E6_EB*G_F_Z( 500,N)
+      WRITE(LU_OUTPUT,'(A,ES9.2)')  '                                 1000 K: ', 1.E6_EB*G_F_Z(1000,N)
+      WRITE(LU_OUTPUT,'(A,ES9.2)')  '                                 1500 K: ', 1.E6_EB*G_F_Z(1500,N)
+   ENDIF
    IF (SM%EVAPORATING) THEN
       WRITE(LU_OUTPUT,'(A)') ' '
       SS => SPECIES(SM%SINGLE_SPEC_INDEX)
@@ -2609,25 +2644,26 @@ REACTION_LOOP: DO N=1,N_REACTIONS
    IF (RN%FYI/='null') WRITE(LU_OUTPUT,'(/3X,A)') TRIM(RN%FYI)
    IF (RN%ID/='null')  WRITE(LU_OUTPUT,'(/3X,A,A)')   'Reaction ID:  ', TRIM(RN%ID)
    IF (RN%REVERSE)     WRITE(LU_OUTPUT,'(/3X,A,A)')   'Reverse Reaction of ID:  ', TRIM(RN%FWD_ID)
-   IF (RN%ALT_INDEX>0) WRITE(LU_OUTPUT,'(/3X,A,A)')   'Alternate Reaction of ID:  ', TRIM(RN%ALT_REAC_ID)
 
    WRITE(LU_OUTPUT,'(/3X,A)')     'Fuel                                           Heat of Combustion (kJ/kg)'
    WRITE(LU_OUTPUT,'(3X,A,1X,F12.4)') RN%FUEL,RN%HEAT_OF_COMBUSTION/1000._EB
 
    WRITE(LU_OUTPUT,'(/3X,A)')     'Stoichiometry'
 
-   WRITE(LU_OUTPUT,'(/3X,A)')     'Primitive Species'
-   WRITE(LU_OUTPUT,'(3X,A)')      'Species ID                                                 Stoich. Coeff.'
+   WRITE(LU_OUTPUT,'(/3X,A)')     'Primitive Species Stoich. Coeff.'
+   WRITE(LU_OUTPUT,'(3X,A)')      'Species ID                                                          Molar'
    DO NN=1,N_SPECIES
       IF (ABS(RN%NU_SPECIES(NN))>=TWO_EPSILON_EB) WRITE(LU_OUTPUT,'(3X,A,1X,F12.6)') SPECIES(NN)%ID,RN%NU_SPECIES(NN)
    ENDDO
 
-   WRITE(LU_OUTPUT,'(/3X,A)')     'Tracked (Lumped) Species'
-   WRITE(LU_OUTPUT,'(3X,A)')      'Species ID                                                 Stoich. Coeff.'
+   WRITE(LU_OUTPUT,'(/3X,A)')     'Tracked (Lumped) Species Stoich. Coeff.'
+   WRITE(LU_OUTPUT,'(3X,A)')      'Species ID                                             Molar         Mass'
    DO NN=1,N_TRACKED_SPECIES
       IF (ABS(RN%NU(NN)) < TWO_EPSILON_EB) CYCLE
-      IF (ABS(RN%NU(NN)) < 10000._EB) WRITE(LU_OUTPUT,'(3X,A,1X,F12.6)') SPECIES_MIXTURE(NN)%ID,RN%NU(NN)
-      IF (ABS(RN%NU(NN)) > 10000._EB) WRITE(LU_OUTPUT,'(3X,A,1X,E12.5)') SPECIES_MIXTURE(NN)%ID,RN%NU(NN)
+      IF (ABS(RN%NU(NN)) < 10000._EB) WRITE(LU_OUTPUT,'(3X,A,1X,F12.6,1X,F12.6)') SPECIES_MIXTURE(NN)%ID(1:47),RN%NU(NN),&
+         RN%NU(NN)*SPECIES_MIXTURE(NN)%MW/SPECIES_MIXTURE(RN%FUEL_SMIX_INDEX)%MW
+      IF (ABS(RN%NU(NN)) > 10000._EB) WRITE(LU_OUTPUT,'(3X,A,1X,E12.5,1X,E12.5)') SPECIES_MIXTURE(NN)%ID(1:47),RN%NU(NN),&
+         RN%NU(NN)*SPECIES_MIXTURE(NN)%MW/SPECIES_MIXTURE(RN%FUEL_SMIX_INDEX)%MW
    ENDDO
 
    WRITE(LU_OUTPUT,'(/3X,A)')     'Reaction Kinetics'
@@ -2655,8 +2691,6 @@ REACTION_LOOP: DO N=1,N_REACTIONS
    ENDIF
    IF (SUPPRESSION .AND. RN%FAST_CHEMISTRY) THEN
       WRITE(LU_OUTPUT,'(3X,A,A)')    'Extinction Model:  ', TRIM(EXTINCTION_MODEL)
-      IF (RN%ALT_INDEX>0) WRITE(LU_OUTPUT,'(3X,A,A)') &
-                                     'Alternate REAC ID:  ', REACTION(RN%ALT_INDEX)%ID
       WRITE(LU_OUTPUT,'(3X,A,F8.1)') 'Ignition Temperature (K):       ', RN%AUTO_IGNITION_TEMPERATURE
       WRITE(LU_OUTPUT,'(3X,A,F8.1)') 'Critical Flame Temperature (K): ', RN%CRIT_FLAME_TMP
    ENDIF
@@ -2990,6 +3024,17 @@ WRITE_SCARC: IF (TRIM(PRES_METHOD)=='SCARC') THEN
    WRITE(LU_OUTPUT,'(3X,A20,A10)') 'Accuracy type       ', TRIM(SCARC_ACCURACY)
 ENDIF WRITE_SCARC
 
+! Write out GLMAT info:
+
+GLMAT_IF : IF(TRIM(PRES_METHOD)=='GLMAT') THEN
+   WRITE(LU_OUTPUT,'(//A/)')   ' GlMat Information'
+#ifdef WITH_PARDISO
+   WRITE(LU_OUTPUT,'(3X,A)') 'Global Pressure solver       : Intel MKL Pardiso'
+#elif WITH_CLUSTER_SPARSE_SOLVER
+   WRITE(LU_OUTPUT,'(3X,A)') 'Global Pressure solver       : Intel MKL Cluster Sparse Solver'
+#endif
+ENDIF GLMAT_IF
+
 WRITE(LU_OUTPUT,*)
 WRITE(LU_OUTPUT,*)
 
@@ -3048,12 +3093,13 @@ WRITE(LU_CORE(NM)) DEL_RHO_D_DEL_Z
 
 DO N=1,N_INIT
    IN => INITIALIZATION(N)
-   WRITE(LU_CORE(NM)) IN%PARTICLE_INSERT_CLOCK(1:NMESHES)
+   WRITE(LU_CORE(NM)) IN%ALREADY_INSERTED(NM)
+   WRITE(LU_CORE(NM)) IN%PARTICLE_INSERT_CLOCK(NM)
 ENDDO
 
 DO N=1,N_SURF
    SF => SURFACE(N)
-   WRITE(LU_CORE(NM)) SF%PARTICLE_INSERT_CLOCK(1:NMESHES)
+   WRITE(LU_CORE(NM)) SF%PARTICLE_INSERT_CLOCK(NM)
 ENDDO
 
 DO N=1,N_OBST
@@ -3066,12 +3112,13 @@ WRITE(LU_CORE(NM)) T,ICYC,PART_CLOCK(NM),RESTART_CLOCK,SLCF_CLOCK(NM), &
              PL3D_CLOCK(NM),BNDF_CLOCK(NM),BNDC_CLOCK,BNDE_CLOCK,GEOC_CLOCK,GEOM_CLOCK,DEVC_CLOCK,HRR_CLOCK,MINT_CLOCK, &
              ISOF_CLOCK(NM),BC_CLOCK,WALL_COUNTER,DT, &
              PBAR,D_PBAR_DT,N_EDGES,RAD_CALL_COUNTER,ANGLE_INC_COUNTER,T_LAST_DUMP_HRR,T_LAST_DUMP_MASS,&
-             RTE_SOURCE_CORRECTION_FACTOR,RAD_Q_SUM,KFST4_SUM,SPECIFIC_ENTHALPY_SUM(NM)
+             RTE_SOURCE_CORRECTION_FACTOR,RAD_Q_SUM,KFST4_SUM,SPECIFIC_ENTHALPY_SUM(NM),&
+             BC_CLOCK_HT3D,WALL_COUNTER_HT3D
 DO N=1,N_DEVC
    DV => DEVICE(N)
    WRITE(LU_CORE(NM)) DV%RMS_VALUE,DV%RMS_VALUE2,DV%COV_VALUE,DV%AVERAGE_VALUE,DV%AVERAGE_VALUE2,&
                       DV%VALUE,DV%T,DV%T_CHANGE,DV%TMP_L,DV%Y_C, &
-                      DV%TIME_INTERVAL,DV%CURRENT_STATE,DV%PRIOR_STATE,DV%LP_TAG,DV%PART_INDEX
+                      DV%TIME_INTERVAL,DV%CURRENT_STATE,DV%PRIOR_STATE,DV%LP_TAG,DV%PART_INDEX,DV%SMOOTHED_VALUE
    IF (DV%QUANTITY=='CHAMBER OBSCURATION') THEN
       WRITE(LU_CORE(NM)) UBOUND(DV%T_E,1)
       WRITE(LU_CORE(NM)) DV%N_T_E,DV%T_E,DV%Y_E
@@ -3194,12 +3241,13 @@ READ(LU_RESTART(NM))  DEL_RHO_D_DEL_Z
 
 DO N=1,N_INIT
    IN => INITIALIZATION(N)
-   READ(LU_RESTART(NM)) IN%PARTICLE_INSERT_CLOCK(1:NMESHES)
+   READ(LU_RESTART(NM)) IN%ALREADY_INSERTED(NM)
+   READ(LU_RESTART(NM)) IN%PARTICLE_INSERT_CLOCK(NM)
 ENDDO
 
 DO N=1,N_SURF
    SF => SURFACE(N)
-   READ(LU_RESTART(NM)) SF%PARTICLE_INSERT_CLOCK(1:NMESHES)
+   READ(LU_RESTART(NM)) SF%PARTICLE_INSERT_CLOCK(NM)
 ENDDO
 
 DO N=1,N_OBST
@@ -3212,13 +3260,14 @@ READ(LU_RESTART(NM)) T,ICYC,PART_CLOCK(NM),RESTART_CLOCK,SLCF_CLOCK(NM), &
              PL3D_CLOCK(NM),BNDF_CLOCK(NM),BNDC_CLOCK,BNDE_CLOCK,GEOC_CLOCK,GEOM_CLOCK,DEVC_CLOCK,HRR_CLOCK,MINT_CLOCK, &
              ISOF_CLOCK(NM),BC_CLOCK,WALL_COUNTER,DT, &
              PBAR,D_PBAR_DT,N_EDGES,RAD_CALL_COUNTER,ANGLE_INC_COUNTER,T_LAST_DUMP_HRR,T_LAST_DUMP_MASS, &
-             RTE_SOURCE_CORRECTION_FACTOR,RAD_Q_SUM,KFST4_SUM,SPECIFIC_ENTHALPY_SUM(NM)
+             RTE_SOURCE_CORRECTION_FACTOR,RAD_Q_SUM,KFST4_SUM,SPECIFIC_ENTHALPY_SUM(NM),&
+             BC_CLOCK_HT3D,WALL_COUNTER_HT3D
 ICYC_RESTART = ICYC
 DO N=1,N_DEVC
    DV => DEVICE(N)
    READ(LU_RESTART(NM)) DV%RMS_VALUE,DV%RMS_VALUE2,DV%COV_VALUE,DV%AVERAGE_VALUE,DV%AVERAGE_VALUE2,&
                       DV%VALUE,DV%T,DV%T_CHANGE,DV%TMP_L,DV%Y_C, &
-                      DV%TIME_INTERVAL,DV%CURRENT_STATE,DV%PRIOR_STATE,DV%LP_TAG,DV%PART_INDEX
+                      DV%TIME_INTERVAL,DV%CURRENT_STATE,DV%PRIOR_STATE,DV%LP_TAG,DV%PART_INDEX,DV%SMOOTHED_VALUE
    IF (DV%QUANTITY=='CHAMBER OBSCURATION') THEN
       READ(LU_RESTART(NM)) N_T_E_MAX
       DV%T_E => REALLOCATE(DV%T_E,-1,N_T_E_MAX)
@@ -3405,9 +3454,6 @@ ENDDO
 WRITE(LU_OUTPUT,*)
 
 100 FORMAT(/' Run Time Diagnostics'/)
-110 FORMAT(6X,' CPU/step:  ',E12.3,' s, Total CPU:  ',F10.2,' s')
-112 FORMAT(6X,' CPU/step:  ',E12.3,' s, Total CPU:  ',F10.2,' min')
-113 FORMAT(6X,' CPU/step:  ',E12.3,' s, Total CPU:  ',F10.2,' hr')
 150 FORMAT(6X,' Step Size: ',E12.3,' s, Total Time: ',F10.5,' s')
 151 FORMAT(6X,' Step Size: ',E12.3,' s, Total Time: ',F10.4,' s')
 152 FORMAT(6X,' Step Size: ',E12.3,' s, Total Time: ',F10.3,' s')
@@ -3419,7 +3465,6 @@ WRITE(LU_OUTPUT,*)
 230 FORMAT(6X,' Max VN number:  ',E9.2,' at (',I4,',',I4,',',I4,')')
 119 FORMAT(6X,' Total Heat Release Rate:      ',F13.3,' kW')
 120 FORMAT(6X,' Radiation Loss to Boundaries: ',F13.3,' kW')
-421 FORMAT(6X,' Fire Resolution Index:        ',F12.3)
 141 FORMAT(6X,' No. of Lagrangian Particles:  ',I12)
 
 T_USED(7) = T_USED(7) + SECOND() - TNOW
@@ -3546,7 +3591,7 @@ INTEGER, INTENT(IN) :: NM
 REAL(EB), POINTER, DIMENSION(:,:,:) :: QUANTITY=>NULL(),B=>NULL(),S=>NULL()
 
 IF (EVACUATION_ONLY(NM)) RETURN
-STIME = T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR
+STIME = REAL(T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR,FB)
 DATAFLAG = 1
 DRY=.FALSE.
 CALL POINT_TO_MESH(NM)
@@ -3611,10 +3656,10 @@ ISOF_LOOP: DO N=1,N_ISOF
    DO K=0,KBAR
       DO J=0,JBAR
          DO I=0,IBAR
-            QQ(I+1,J+1,K+1,1) = S(I,J,K)*(QUANTITY(I,J,K)*B(I,J,K)+ QUANTITY(I+1,J,K)*B(I+1,J,K)+ &
-                                    QUANTITY(I,J,K+1)*B(I,J,K+1)+ QUANTITY(I+1,J,K+1)*B(I+1,J,K+1)+ &
-                                    QUANTITY(I,J+1,K)*B(I,J+1,K)+ QUANTITY(I+1,J+1,K)*B(I+1,J+1,K)+ &
-                                    QUANTITY(I,J+1,K+1)*B(I,J+1,K+1)+ QUANTITY(I+1,J+1,K+1)*B(I+1,J+1,K+1))
+            QQ(I+1,J+1,K+1,1) = REAL(S(I,J,K)*(QUANTITY(I,J,K)*B(I,J,K)        + QUANTITY(I+1,J,K)*B(I+1,J,K)+ &
+                                               QUANTITY(I,J,K+1)*B(I,J,K+1)    + QUANTITY(I+1,J,K+1)*B(I+1,J,K+1)+ &
+                                               QUANTITY(I,J+1,K)*B(I,J+1,K)    + QUANTITY(I+1,J+1,K)*B(I+1,J+1,K)+ &
+                                               QUANTITY(I,J+1,K+1)*B(I,J+1,K+1)+ QUANTITY(I+1,J+1,K+1)*B(I+1,J+1,K+1)),FB)
          ENDDO
       ENDDO
    ENDDO
@@ -3631,6 +3676,8 @@ SUBROUTINE DUMP_SMOKE3D(T,DT,NM)
 
 ! Write out the transparent smoke/fire data to files. Typically, smoke goes into the file 1, fire (HRRPUV) into file 2.
 
+USE COMPLEX_GEOMETRY, ONLY : IBM_VGSC,IBM_SOLID
+
 REAL(EB), INTENT(IN) :: T,DT
 INTEGER,  INTENT(IN) :: NM
 INTEGER  :: DATA_FILE_FLAG,DATA_FLAG,I,J,K
@@ -3645,20 +3692,20 @@ CALL POINT_TO_MESH(NM)
 ! Miscellaneous settings
 
 DRY   = .FALSE.
-STIME = T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR
-DXX   = DX(1)
+STIME = REAL(T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR,FB)
+DXX   = REAL(DX(1),FB)
 FF   => WORK3
 
 ! Set the appropriate extinction coefficient
 
 IF (SMOKE3D_Y_INDEX > 0) THEN
-   MASS_EXT_COEF = SPECIES(SMOKE3D_Y_INDEX)%MASS_EXTINCTION_COEFFICIENT
+   MASS_EXT_COEF = REAL(SPECIES(SMOKE3D_Y_INDEX)%MASS_EXTINCTION_COEFFICIENT,FB)
 ELSEIF (SMOKE3D_Z_INDEX >= 0) THEN
-   MASS_EXT_COEF = SPECIES_MIXTURE(SMOKE3D_Z_INDEX)%MASS_EXTINCTION_COEFFICIENT
+   MASS_EXT_COEF = REAL(SPECIES_MIXTURE(SMOKE3D_Z_INDEX)%MASS_EXTINCTION_COEFFICIENT,FB)
 ELSEIF (SOOT_INDEX>0) THEN
-   MASS_EXT_COEF = SPECIES(SOOT_INDEX)%MASS_EXTINCTION_COEFFICIENT
+   MASS_EXT_COEF = REAL(SPECIES(SOOT_INDEX)%MASS_EXTINCTION_COEFFICIENT,FB)
 ELSE
-   MASS_EXT_COEF = 0._EB
+   MASS_EXT_COEF = 0._FB
 ENDIF
 
 ! Write out 1 or 2 data files. The first usually contains the transparent "smoke", the second usually the fire.
@@ -3690,11 +3737,22 @@ DATA_FILE_LOOP: DO DATA_FILE_FLAG=1,2
    DO K=0,KBAR
       DO J=0,JBAR
          DO I=0,IBAR
-            QQ(I,J,K,1) = (FF(I,J,K)  +FF(I+1,J,K)  +FF(I,J,K+1)  +FF(I+1,J,K+1)+ &
-                           FF(I,J+1,K)+FF(I+1,J+1,K)+FF(I,J+1,K+1)+FF(I+1,J+1,K+1))*0.125_FB
+            QQ(I,J,K,1) = REAL((FF(I,J,K)  +FF(I+1,J,K)  +FF(I,J,K+1)  +FF(I+1,J,K+1)+ &
+                                FF(I,J+1,K)+FF(I+1,J+1,K)+FF(I,J+1,K+1)+FF(I+1,J+1,K+1))*0.125_FB,FB)
          ENDDO
       ENDDO
    ENDDO
+
+   IF (CC_IBM) THEN
+      DO K=0,KBAR
+         DO J=0,JBAR
+            DO I=0,IBAR
+               IF(MESHES(NM)%VERTVAR(I,J,K,IBM_VGSC) /= IBM_SOLID) CYCLE
+               QQ(I,J,K,1) = 0._FB
+            ENDDO
+         ENDDO
+      ENDDO
+   ENDIF
 
    ! Pack the data into a 1-D array and call the C routine that writes the file
 
@@ -3758,7 +3816,7 @@ USE COMPLEX_GEOMETRY
 
    INTEGER :: DIR,SLICE
    INTEGER :: I, J, K
-   INTEGER :: ICF, IFACE, NVF
+   INTEGER :: ICF, IFACE, NVF, IEXIM, ICC, JCC, ICF2, IFACE2, NFC, ICCF
 
    CHARACTER(LEN=100) :: SLICETYPE_LOCAL
 
@@ -3790,8 +3848,8 @@ USE COMPLEX_GEOMETRY
             DO J = J1+1, J2
                IF (FCVAR(SLICE,J,K,IBM_FGSC,IAXIS) == IBM_CUTCFE) THEN
                   ICF = FCVAR(SLICE,J,K,IBM_IDCF,IAXIS) ! a cutcell so count number of faces
-                  DO IFACE=1,IBM_CUT_FACE(ICF)%NFACE
-                     NVF=IBM_CUT_FACE(ICF)%CFELEM(1,IFACE)
+                  DO IFACE=1,CUT_FACE(ICF)%NFACE+CUT_FACE(ICF)%NSFACE ! Adds also SOLID side faces.
+                     NVF=CUT_FACE(ICF)%CFELEM(1,IFACE)
                      NFACES_CUTCELLS = NFACES_CUTCELLS + NVF - 2
                      NVERTS_CUTCELLS = NVERTS_CUTCELLS + NVF
                   ENDDO
@@ -3801,13 +3859,13 @@ USE COMPLEX_GEOMETRY
             END DO
          END DO
       ELSE IF (DIR==2) THEN
-        NVERTS = (I2 + 1 - I1)*(K2 + 1 - K1)
+         NVERTS = (I2 + 1 - I1)*(K2 + 1 - K1)
          DO K = K1+1, K2
             DO I = I1+1, I2
                IF (FCVAR(I,SLICE,K,IBM_FGSC,JAXIS) == IBM_CUTCFE) THEN
                   ICF = FCVAR(I,SLICE,K,IBM_IDCF,JAXIS)
-                  DO IFACE=1,IBM_CUT_FACE(ICF)%NFACE
-                     NVF=IBM_CUT_FACE(ICF)%CFELEM(1,IFACE)
+                  DO IFACE=1,CUT_FACE(ICF)%NFACE+CUT_FACE(ICF)%NSFACE ! Adds also SOLID side faces.
+                     NVF=CUT_FACE(ICF)%CFELEM(1,IFACE)
                      NFACES_CUTCELLS = NFACES_CUTCELLS + NVF - 2
                      NVERTS_CUTCELLS = NVERTS_CUTCELLS + NVF
                   ENDDO
@@ -3817,13 +3875,13 @@ USE COMPLEX_GEOMETRY
             END DO
          END DO
       ELSE
-        NVERTS = (I2 + 1 - I1)*(J2 + 1 - J1)
+         NVERTS = (I2 + 1 - I1)*(J2 + 1 - J1)
          DO I = I1+1, I2
             DO J = J1+1, J2
                IF (FCVAR(I,J,SLICE,IBM_FGSC,KAXIS) == IBM_CUTCFE) THEN
                   ICF = FCVAR(I,J,SLICE,IBM_IDCF,KAXIS)
-                  DO IFACE=1,IBM_CUT_FACE(ICF)%NFACE
-                     NVF=IBM_CUT_FACE(ICF)%CFELEM(1,IFACE)
+                  DO IFACE=1,CUT_FACE(ICF)%NFACE+CUT_FACE(ICF)%NSFACE ! Adds also SOLID side faces.
+                     NVF=CUT_FACE(ICF)%CFELEM(1,IFACE)
                      NFACES_CUTCELLS = NFACES_CUTCELLS + NVF - 2
                      NVERTS_CUTCELLS = NVERTS_CUTCELLS + NVF
                   ENDDO
@@ -3833,6 +3891,61 @@ USE COMPLEX_GEOMETRY
             END DO
          END DO
       ENDIF
+   ELSE IF (SLICETYPE_LOCAL=='INBOUND_FACES') THEN
+      DO K = 1, KBAR
+         DO J = 1, JBAR
+            DO I = 1, IBAR
+               IF (CCVAR(I,J,K,IBM_IDCF) > 0) THEN ! There are INBOUNDARY cut-faces on this cell:
+                  ICF = CCVAR(I,J,K,IBM_IDCF)
+                  DO IFACE=1,CUT_FACE(ICF)%NFACE ! Adds also SOLID side faces.
+                     NVF=CUT_FACE(ICF)%CFELEM(1,IFACE)
+                     NFACES_CUTCELLS = NFACES_CUTCELLS + NVF - 2
+                     NVERTS_CUTCELLS = NVERTS_CUTCELLS + NVF
+                  ENDDO
+               ENDIF
+            END DO
+         END DO
+      END DO
+   ELSE IF (SLICETYPE_LOCAL=='EXIMBND_FACES') THEN
+      NVF = 4 ! 4 Vertices for EXIM regular face.
+      DO IEXIM=1,IBM_NEXIMFACE_MESH
+         NFACES_CUTCELLS = NFACES_CUTCELLS + NVF - 2
+         NVERTS_CUTCELLS = NVERTS_CUTCELLS + NVF
+      ENDDO
+   ELSE IF (SLICETYPE_LOCAL=='CUT_CELLS') THEN
+      DO K = 1, KBAR
+         DO J = 1, JBAR
+            DO I = 1, IBAR
+               IF (CCVAR(I,J,K,IBM_IDCC) <= 0) CYCLE
+               ICC = CCVAR(I,J,K,IBM_IDCC)
+               DO JCC=1,CUT_CELL(ICC)%NCELL
+                  NFC=CUT_CELL(ICC)%CCELEM(1,JCC)
+                  ! Loop on faces corresponding to cut-cell ICC2:
+                  DO ICCF=1,NFC
+                     IFACE=CUT_CELL(ICC)%CCELEM(ICCF+1,JCC)
+                     SELECT CASE(CUT_CELL(ICC)%FACE_LIST(1,IFACE))
+                     CASE(IBM_FTYPE_RGGAS) ! REGULAR GASPHASE
+                        NVF = 4
+                        NFACES_CUTCELLS = NFACES_CUTCELLS + NVF - 2
+                        NVERTS_CUTCELLS = NVERTS_CUTCELLS + NVF
+                     CASE(IBM_FTYPE_CFGAS)
+                        ICF2    = CUT_CELL(ICC)%FACE_LIST(4,IFACE)
+                        IFACE2  = CUT_CELL(ICC)%FACE_LIST(5,IFACE)
+                        NVF=CUT_FACE(ICF2)%CFELEM(1,IFACE2)
+                        NFACES_CUTCELLS = NFACES_CUTCELLS + NVF - 2
+                        NVERTS_CUTCELLS = NVERTS_CUTCELLS + NVF
+                     CASE(IBM_FTYPE_CFINB)
+                        ICF2    = CUT_CELL(ICC)%FACE_LIST(4,IFACE)
+                        IFACE2  = CUT_CELL(ICC)%FACE_LIST(5,IFACE)
+                        NVF=CUT_FACE(ICF2)%CFELEM(1,IFACE2)
+                        NFACES_CUTCELLS = NFACES_CUTCELLS + NVF - 2
+                        NVERTS_CUTCELLS = NVERTS_CUTCELLS + NVF
+                     END SELECT
+                  ENDDO
+               ENDDO
+            ENDDO
+         ENDDO
+      ENDDO
    ENDIF
    NFACES = NFACES + NFACES_CUTCELLS
    NVERTS = NVERTS + NVERTS_CUTCELLS
@@ -3848,16 +3961,23 @@ USE COMPLEX_GEOMETRY
    CHARACTER(*), INTENT(IN) :: SLICETYPE
    INTEGER, INTENT(IN) :: I1,I2,J1,J2,K1,K2
    INTEGER, INTENT(IN) :: NVERTS, NVERTS_CUTCELLS, NFACES, NFACES_CUTCELLS
-   INTEGER, INTENT(OUT), DIMENSION(3*NFACES) :: FACES
+   INTEGER, INTENT(OUT), DIMENSION(3*NFACES), TARGET :: FACES
    INTEGER, INTENT(OUT), DIMENSION(NFACES) :: LOCATIONS
-   REAL(FB), INTENT(OUT), DIMENSION(3*NVERTS) :: VERTS
+   REAL(FB), INTENT(OUT), DIMENSION(3*NVERTS), TARGET :: VERTS
+
+   INTEGER :: VERT_OFFSET
+   INTEGER, POINTER, DIMENSION(:) :: FACEPTR
+   REAL(FB), POINTER, DIMENSION(:) :: VERTPTR
 
    INTEGER :: DIR, SLICE
    INTEGER :: NI, NJ, NK
    INTEGER :: I, J, K
    INTEGER IFACE, IVERT, IVERTCUT, IFACECUT, IVERTCF, IFACECF
+   INTEGER VERTBEG, VERTEND, FACEBEG, FACEEND
    LOGICAL IS_SOLID
-   INTEGER :: ICF, NVF, IVCF
+   INTEGER :: ICF, NVF, IVCF, IADD, JADD, KADD, IEXIM, X1AXIS
+   INTEGER :: II, JJ, KK, ICC, JCC, NFC, ICCF, LOWHIGH, ILH, ICF2, IFACE2
+   INTEGER, ALLOCATABLE, DIMENSION(:) :: LOCTYPE
 
    CHARACTER(LEN=100) :: SLICETYPE_LOCAL
 
@@ -3887,13 +4007,13 @@ USE COMPLEX_GEOMETRY
             DO J=1,NJ-1
                IS_SOLID = SOLID(CELL_INDEX(SLICE,J+J1,K+K1))
                IFACE = IFACE + 1
-               IF (IS_SOLID)LOCATIONS(IFACE) = 1  ! triangle is in a solid so tag with 1
+               IF (IS_SOLID)LOCATIONS(IFACE) = 1 + 16 ! triangle is in a solid so tag with 1
                FACES(3*IFACE-2) = IJK(  J,  K,NJ)
                FACES(3*IFACE-1) = IJK(J+1,  K,NJ)
                FACES(3*IFACE)   = IJK(J+1,K+1,NJ)
 
                IFACE = IFACE + 1
-               IF (IS_SOLID)LOCATIONS(IFACE) = 1  ! triangle is in a solid so tag with 1
+               IF (IS_SOLID)LOCATIONS(IFACE) = 1 + 4 ! triangle is in a solid so tag with 1
                FACES(3*IFACE-2) = IJK(  J,  K,NJ)
                FACES(3*IFACE-1) = IJK(J+1,K+1,NJ)
                FACES(3*IFACE)   = IJK(  J,K+1,NJ)
@@ -3914,13 +4034,13 @@ USE COMPLEX_GEOMETRY
             DO I=1,NI-1
                IS_SOLID = SOLID(CELL_INDEX(I+I1,SLICE,K+K1))
                IFACE = IFACE + 1
-               IF (IS_SOLID)LOCATIONS(IFACE) = 1
+               IF (IS_SOLID)LOCATIONS(IFACE) = 1 + 16
                FACES(3*IFACE-2) = IJK(  I,  K,NI)
                FACES(3*IFACE-1) = IJK(I+1,  K,NI)
                FACES(3*IFACE)   = IJK(I+1,K+1,NI)
 
                IFACE = IFACE + 1
-               IF (IS_SOLID)LOCATIONS(IFACE) = 1
+               IF (IS_SOLID)LOCATIONS(IFACE) = 1 + 4
                FACES(3*IFACE-2) = IJK(  I,  K,NI)
                FACES(3*IFACE-1) = IJK(I+1,K+1,NI)
                FACES(3*IFACE)   = IJK(  I,K+1,NI)
@@ -3941,13 +4061,13 @@ USE COMPLEX_GEOMETRY
             DO I=1,NI-1
                IS_SOLID = SOLID(CELL_INDEX(I+I1,J+J1,SLICE))
                IFACE = IFACE + 1
-               IF (IS_SOLID) LOCATIONS(IFACE) = 1
+               IF (IS_SOLID) LOCATIONS(IFACE) = 1 + 16
                FACES(3*IFACE-2) = IJK(  I,  J,NI)
                FACES(3*IFACE-1) = IJK(I+1,  J,NI)
                FACES(3*IFACE)   = IJK(I+1,J+1,NI)
 
                IFACE = IFACE + 1
-               IF (IS_SOLID) LOCATIONS(IFACE) = 1
+               IF (IS_SOLID) LOCATIONS(IFACE) = 1 + 4
                FACES(3*IFACE-2) = IJK(  I,  J,NI)
                FACES(3*IFACE-1) = IJK(I+1,J+1,NI)
                FACES(3*IFACE)   = IJK(  I,J+1,NI)
@@ -3978,34 +4098,49 @@ USE COMPLEX_GEOMETRY
             DO J=1,NJ-1
                IF (FCVAR(SLICE,J,K,IBM_FGSC,IAXIS) == IBM_CUTCFE) THEN
                   ICF = FCVAR(SLICE,J,K,IBM_IDCF,IAXIS) ! store cutcell faces and vertices
-                  DO IFACECF=1,IBM_CUT_FACE(ICF)%NFACE
-                     NVF=IBM_CUT_FACE(ICF)%CFELEM(1,IFACECF)
+                  DO IFACECF=1,CUT_FACE(ICF)%NFACE+CUT_FACE(ICF)%NSFACE
+                     NVF=CUT_FACE(ICF)%CFELEM(1,IFACECF)
+                     VERTBEG = IVERTCUT + 1
+                     VERTBEG = 3*VERTBEG - 2
+                     VERTEND = IVERTCUT + NVF
+                     VERTEND = 3*VERTEND
                      DO IVCF=1,NVF
                         IVERTCUT = IVERTCUT + 1
-                        IVERTCF=IBM_CUT_FACE(ICF)%CFELEM(IVCF+1,IFACECF)
-                        VERTS(3*IVERTCUT-2:3*IVERTCUT) = IBM_CUT_FACE(ICF)%XYZVERT(1:3,IVERTCF)
+                        IVERTCF=CUT_FACE(ICF)%CFELEM(IVCF+1,IFACECF)
+                        VERTS(3*IVERTCUT-2:3*IVERTCUT) = REAL(CUT_FACE(ICF)%XYZVERT(1:3,IVERTCF),FB)
                      ENDDO
+
+                     FACEBEG = 3*(IFACECUT+1) - 2
+                     FACEEND = FACEBEG + 3*(NVF-2) - 1
+                     FACEPTR(1:3*(NVF-2))        =>FACES(FACEBEG:FACEEND)
+                     VERTPTR(1:1+VERTEND-VERTBEG)=>VERTS(VERTBEG:VERTEND)
+                     VERT_OFFSET = IVERTCUT - NVF
+                     ALLOCATE(LOCTYPE(NVF-2))
+                     CALL TRIANGULATE(DIR,VERTPTR,NVF,VERT_OFFSET,FACEPTR,LOCTYPE)
                      DO IVCF = 1, NVF-2 ! for now assume face is convex
                         ! vertex indices 1, 2, ..., NVF
                         ! faces (1,2,3), (1,3,4), ..., (1,NVF-1,NVF)
                         IFACECUT = IFACECUT + 1
-                        LOCATIONS(IFACECUT) = 2
-                        FACES(3*IFACECUT-2) = (IVERTCUT-NVF)+1
-                        FACES(3*IFACECUT-1) = (IVERTCUT-NVF)+1+IVCF
-                        FACES(3*IFACECUT)   = (IVERTCUT-NVF)+2+IVCF
+                        LOCATIONS(IFACECUT) = 2 + LOCTYPE(IVCF)
+                        IF(IFACECF > CUT_FACE(ICF)%NFACE) LOCATIONS(IFACECUT) = 1 + LOCTYPE(IVCF) ! Solid side cut-faces.
+! after TRIANGULATE is verified remove the following 3 lines of code (and similar lines in 2 locations below)
+!                        FACES(3*IFACECUT-2) = (IVERTCUT-NVF)+1
+!                        FACES(3*IFACECUT-1) = (IVERTCUT-NVF)+1+IVCF
+!                        FACES(3*IFACECUT)   = (IVERTCUT-NVF)+2+IVCF
                      ENDDO
+                     DEALLOCATE(LOCTYPE)
                   ENDDO
                ELSE
                   IFACE = IFACE + 1 ! store solid and gas faces and vertices (2 faces per cell)
-                  LOCATIONS(IFACE) = 0
-                  IF ( FCVAR(SLICE,J,K,IBM_FGSC,IAXIS) == IBM_SOLID) LOCATIONS(IFACE)=1
+                  LOCATIONS(IFACE) = 0 + 16
+                  IF ( FCVAR(SLICE,J,K,IBM_FGSC,IAXIS) == IBM_SOLID) LOCATIONS(IFACE)=1 + 16
                   FACES(3*IFACE-2) = IJK(  J,  K,NJ)
                   FACES(3*IFACE-1) = IJK(J+1,  K,NJ)
                   FACES(3*IFACE)   = IJK(J+1,K+1,NJ)
 
                   IFACE = IFACE + 1
-                  LOCATIONS(IFACE) = 0
-                  IF ( FCVAR(SLICE,J,K,IBM_FGSC,IAXIS) == IBM_SOLID) LOCATIONS(IFACE)=1
+                  LOCATIONS(IFACE) = 0 + 4
+                  IF ( FCVAR(SLICE,J,K,IBM_FGSC,IAXIS) == IBM_SOLID) LOCATIONS(IFACE)=1 + 4
                   FACES(3*IFACE-2) = IJK(  J,  K,NJ)
                   FACES(3*IFACE-1) = IJK(J+1,K+1,NJ)
                   FACES(3*IFACE)   = IJK(  J,K+1,NJ)
@@ -4027,32 +4162,45 @@ USE COMPLEX_GEOMETRY
             DO I=1,NI-1
                IF (FCVAR(I,SLICE,K,IBM_FGSC,JAXIS) == IBM_CUTCFE) THEN
                   ICF = FCVAR(I,SLICE,K,IBM_IDCF,JAXIS)
-                  DO IFACECF=1,IBM_CUT_FACE(ICF)%NFACE
-                     NVF=IBM_CUT_FACE(ICF)%CFELEM(1,IFACECF)
+                  DO IFACECF=1,CUT_FACE(ICF)%NFACE+CUT_FACE(ICF)%NSFACE
+                     NVF=CUT_FACE(ICF)%CFELEM(1,IFACECF)
+                     VERTBEG = IVERTCUT + 1
+                     VERTBEG = 3*VERTBEG - 2
+                     VERTEND = IVERTCUT + NVF
+                     VERTEND = 3*VERTEND
                      DO IVCF=1,NVF
                         IVERTCUT = IVERTCUT + 1
-                        IVERTCF=IBM_CUT_FACE(ICF)%CFELEM(IVCF+1,IFACECF)
-                        VERTS(3*IVERTCUT-2:3*IVERTCUT) = IBM_CUT_FACE(ICF)%XYZVERT(1:3,IVERTCF)
+                        IVERTCF=CUT_FACE(ICF)%CFELEM(IVCF+1,IFACECF)
+                        VERTS(3*IVERTCUT-2:3*IVERTCUT) = REAL(CUT_FACE(ICF)%XYZVERT(1:3,IVERTCF),FB)
                      ENDDO
+                     FACEBEG = 3*(IFACECUT+1) - 2
+                     FACEEND = FACEBEG + 3*(NVF-2) - 1
+                     FACEPTR(1:3*(NVF-2))        =>FACES(FACEBEG:FACEEND)
+                     VERTPTR(1:1+VERTEND-VERTBEG)=>VERTS(VERTBEG:VERTEND)
+                     VERT_OFFSET = IVERTCUT - NVF
+                     ALLOCATE(LOCTYPE(NVF-2))
+                     CALL TRIANGULATE(DIR,VERTPTR,NVF,VERT_OFFSET,FACEPTR,LOCTYPE)
                      DO IVCF = 1, NVF-2 ! for now assume face is convex
                         IFACECUT = IFACECUT + 1
-                        LOCATIONS(IFACECUT) = 2
-                        FACES(3*IFACECUT-2) = IVERTCUT-NVF+1
-                        FACES(3*IFACECUT-1) = IVERTCUT-NVF+1+IVCF
-                        FACES(3*IFACECUT)   = IVERTCUT-NVF+1+IVCF+1
+                        LOCATIONS(IFACECUT) = 2 + LOCTYPE(IVCF)
+                        IF(IFACECF > CUT_FACE(ICF)%NFACE) LOCATIONS(IFACECUT) = 1 + LOCTYPE(IVCF) ! Solid side cut-faces.
+!                        FACES(3*IFACECUT-2) = IVERTCUT-NVF+1
+!                        FACES(3*IFACECUT-1) = IVERTCUT-NVF+1+IVCF
+!                        FACES(3*IFACECUT)   = IVERTCUT-NVF+1+IVCF+1
                      ENDDO
+                     DEALLOCATE(LOCTYPE)
                   ENDDO
                ELSE
                   IFACE = IFACE + 1
-                  LOCATIONS(IFACE) = 0
-                  IF ( FCVAR(I,SLICE,K,IBM_FGSC,JAXIS) == IBM_SOLID) LOCATIONS(IFACE)=1
+                  LOCATIONS(IFACE) = 0 + 16
+                  IF ( FCVAR(I,SLICE,K,IBM_FGSC,JAXIS) == IBM_SOLID) LOCATIONS(IFACE)=1 + 16
                   FACES(3*IFACE-2) = IJK(  I,  K,NI)
                   FACES(3*IFACE-1) = IJK(I+1,  K,NI)
                   FACES(3*IFACE)   = IJK(I+1,K+1,NI)
 
                   IFACE = IFACE + 1
-                  LOCATIONS(IFACE) = 0
-                  IF ( FCVAR(I,SLICE,K,IBM_FGSC,JAXIS) == IBM_SOLID) LOCATIONS(IFACE)=1
+                  LOCATIONS(IFACE) = 0 + 4
+                  IF ( FCVAR(I,SLICE,K,IBM_FGSC,JAXIS) == IBM_SOLID) LOCATIONS(IFACE)=1 + 4
                   FACES(3*IFACE-2) = IJK(  I,  K,NI)
                   FACES(3*IFACE-1) = IJK(I+1,K+1,NI)
                   FACES(3*IFACE)   = IJK(  I,K+1,NI)
@@ -4074,32 +4222,45 @@ USE COMPLEX_GEOMETRY
             DO I=1,NI-1
                IF (FCVAR(I,J,SLICE,IBM_FGSC,KAXIS) == IBM_CUTCFE) THEN
                   ICF = FCVAR(I,J,SLICE,IBM_IDCF,KAXIS)
-                  DO IFACECF=1,IBM_CUT_FACE(ICF)%NFACE
-                     NVF=IBM_CUT_FACE(ICF)%CFELEM(1,IFACECF)
+                  DO IFACECF=1,CUT_FACE(ICF)%NFACE+CUT_FACE(ICF)%NSFACE
+                     NVF=CUT_FACE(ICF)%CFELEM(1,IFACECF)
+                     VERTBEG = IVERTCUT + 1
+                     VERTBEG = 3*VERTBEG - 2
+                     VERTEND = IVERTCUT + NVF
+                     VERTEND = 3*VERTEND
                      DO IVCF=1,NVF
                         IVERTCUT = IVERTCUT + 1
-                        IVERTCF=IBM_CUT_FACE(ICF)%CFELEM(IVCF+1,IFACECF)
-                        VERTS(3*IVERTCUT-2:3*IVERTCUT) = IBM_CUT_FACE(ICF)%XYZVERT(1:3,IVERTCF)
+                        IVERTCF=CUT_FACE(ICF)%CFELEM(IVCF+1,IFACECF)
+                        VERTS(3*IVERTCUT-2:3*IVERTCUT) = REAL(CUT_FACE(ICF)%XYZVERT(1:3,IVERTCF),FB)
                      ENDDO
+                     FACEBEG = 3*(IFACECUT+1) - 2
+                     FACEEND = FACEBEG + 3*(NVF-2) - 1
+                     FACEPTR(1:3*(NVF-2))        =>FACES(FACEBEG:FACEEND)
+                     VERTPTR(1:1+VERTEND-VERTBEG)=>VERTS(VERTBEG:VERTEND)
+                     VERT_OFFSET = IVERTCUT - NVF
+                     ALLOCATE(LOCTYPE(NVF-2))
+                     CALL TRIANGULATE(DIR,VERTPTR,NVF,VERT_OFFSET,FACEPTR,LOCTYPE)
                      DO IVCF = 1, NVF-2 ! for now assume face is convex
                         IFACECUT = IFACECUT + 1
-                        LOCATIONS(IFACECUT) = 2
-                        FACES(3*IFACECUT-2) = IVERTCUT-NVF+1
-                        FACES(3*IFACECUT-1) = IVERTCUT-NVF+1+IVCF
-                        FACES(3*IFACECUT)   = IVERTCUT-NVF+1+IVCF+1
+                        LOCATIONS(IFACECUT) = 2 + LOCTYPE(IVCF)
+                        IF(IFACECF > CUT_FACE(ICF)%NFACE) LOCATIONS(IFACECUT) = 1 + LOCTYPE(IVCF) ! Solid side cut-faces.
+!                        FACES(3*IFACECUT-2) = IVERTCUT-NVF+1
+!                        FACES(3*IFACECUT-1) = IVERTCUT-NVF+1+IVCF
+!                        FACES(3*IFACECUT)   = IVERTCUT-NVF+1+IVCF+1
                      ENDDO
+                     DEALLOCATE(LOCTYPE)
                   ENDDO
                ELSE
                   IFACE = IFACE + 1
-                  LOCATIONS(IFACE) = 0
-                  IF ( FCVAR(I,J,SLICE,IBM_FGSC,KAXIS) == IBM_SOLID) LOCATIONS(IFACE)=1
+                  LOCATIONS(IFACE) = 0 + 16
+                  IF ( FCVAR(I,J,SLICE,IBM_FGSC,KAXIS) == IBM_SOLID) LOCATIONS(IFACE)=1 + 16
                   FACES(3*IFACE-2) = IJK(  I,  J,NI)
                   FACES(3*IFACE-1) = IJK(I+1,  J,NI)
                   FACES(3*IFACE)   = IJK(I+1,J+1,NI)
 
                   IFACE = IFACE + 1
-                  LOCATIONS(IFACE) = 0
-                  IF ( FCVAR(I,J,SLICE,IBM_FGSC,KAXIS) == IBM_SOLID) LOCATIONS(IFACE)=1
+                  LOCATIONS(IFACE) = 0 + 4
+                  IF ( FCVAR(I,J,SLICE,IBM_FGSC,KAXIS) == IBM_SOLID) LOCATIONS(IFACE)=1 + 4
                   FACES(3*IFACE-2) = IJK(  I,  J,NI)
                   FACES(3*IFACE-1) = IJK(I+1,J+1,NI)
                   FACES(3*IFACE)   = IJK(  I,J+1,NI)
@@ -4107,17 +4268,216 @@ USE COMPLEX_GEOMETRY
             END DO
          END DO
       ENDIF
+   ELSE IF (SLICETYPE_LOCAL=='INBOUND_FACES') THEN
+      DIR   = 0
+      IVERTCUT=NVERTS-NVERTS_CUTCELLS ! start cutcell counters after 'regular' cells
+      IFACECUT=NFACES-NFACES_CUTCELLS
+      DO K=1,KBAR
+         DO J=1,JBAR
+            DO I=1,IBAR
+            IF (CCVAR(I,J,K,IBM_IDCF) > 0) THEN
+               ICF = CCVAR(I,J,K,IBM_IDCF)
+               DO IFACECF=1,CUT_FACE(ICF)%NFACE
+                  NVF=CUT_FACE(ICF)%CFELEM(1,IFACECF)
+                  VERTBEG = IVERTCUT + 1
+                  VERTBEG = 3*VERTBEG - 2
+                  VERTEND = IVERTCUT + NVF
+                  VERTEND = 3*VERTEND
+                  DO IVCF=1,NVF
+                     IVERTCUT = IVERTCUT + 1
+                     IVERTCF=CUT_FACE(ICF)%CFELEM(IVCF+1,IFACECF)
+                     VERTS(3*IVERTCUT-2:3*IVERTCUT) = REAL(CUT_FACE(ICF)%XYZVERT(1:3,IVERTCF),FB)
+                  ENDDO
+                  FACEBEG = 3*(IFACECUT+1) - 2
+                  FACEEND = FACEBEG + 3*(NVF-2) - 1
+                  FACEPTR(1:3*(NVF-2))        =>FACES(FACEBEG:FACEEND)
+                  VERTPTR(1:1+VERTEND-VERTBEG)=>VERTS(VERTBEG:VERTEND)
+                  VERT_OFFSET = IVERTCUT - NVF
+                  ALLOCATE(LOCTYPE(NVF-2))
+                  CALL TRIANGULATE(DIR,VERTPTR,NVF,VERT_OFFSET,FACEPTR,LOCTYPE)
+                  DO IVCF = 1, NVF-2 ! for now assume face is convex
+                     IFACECUT = IFACECUT + 1
+                     LOCATIONS(IFACECUT) = 1 + LOCTYPE(IVCF) ! Consider them as SOLID.
+                  ENDDO
+                  DEALLOCATE(LOCTYPE)
+               ENDDO
+            ENDIF
+            ENDDO
+         ENDDO
+      ENDDO
+   ELSE IF (SLICETYPE_LOCAL=='EXIMBND_FACES') THEN
+      IVERTCUT=NVERTS-NVERTS_CUTCELLS ! start cutcell counters after 'regular' cells
+      IFACECUT=NFACES-NFACES_CUTCELLS
+      DO IEXIM=1,IBM_NEXIMFACE_MESH
+         I      = IBM_EXIM_FACE(IEXIM)%IJK(IAXIS)
+         J      = IBM_EXIM_FACE(IEXIM)%IJK(JAXIS)
+         K      = IBM_EXIM_FACE(IEXIM)%IJK(KAXIS)
+         X1AXIS = IBM_EXIM_FACE(IEXIM)%IJK(KAXIS+1)
+         SELECT CASE(X1AXIS)
+         CASE(IAXIS)
+            DO KADD=-1,0
+               DO JADD=-1,0
+                  IVERTCUT = IVERTCUT + 1
+                  VERTS(3*IVERTCUT-2) = REAL(X(I     ),FB)
+                  VERTS(3*IVERTCUT-1) = REAL(Y(J+JADD),FB)
+                  VERTS(3*IVERTCUT)   = REAL(Z(K+KADD),FB)
+               ENDDO
+            ENDDO
+         CASE(JAXIS)
+            DO IADD=-1,0
+               DO KADD=-1,0
+                  IVERTCUT = IVERTCUT + 1
+                  VERTS(3*IVERTCUT-2) = REAL(X(I+IADD),FB)
+                  VERTS(3*IVERTCUT-1) = REAL(Y(J     ),FB)
+                  VERTS(3*IVERTCUT)   = REAL(Z(K+KADD),FB)
+               ENDDO
+            ENDDO
+         CASE(KAXIS)
+            DO JADD=-1,0
+               DO IADD=-1,0
+                  IVERTCUT = IVERTCUT + 1
+                  VERTS(3*IVERTCUT-2) = REAL(X(I+IADD),FB)
+                  VERTS(3*IVERTCUT-1) = REAL(Y(J+JADD),FB)
+                  VERTS(3*IVERTCUT)   = REAL(Z(K     ),FB)
+               ENDDO
+            ENDDO
+         END SELECT
+         IFACECUT = IFACECUT + 1
+         LOCATIONS(IFACECUT) = 1 + 16
+         FACES(3*IFACECUT-2:3*IFACECUT) = (/ IVERTCUT-3, IVERTCUT-2, IVERTCUT   /) ! Local Nodes 1, 2, 4
+
+         IFACECUT = IFACECUT + 1
+         LOCATIONS(IFACECUT) = 1 + 16
+         FACES(3*IFACECUT-2:3*IFACECUT) = (/ IVERTCUT  , IVERTCUT-1, IVERTCUT-3 /) ! Local Nodes 4, 3, 1
+      ENDDO
+   ELSE IF (SLICETYPE_LOCAL=='CUT_CELLS') THEN
+      IVERTCUT=NVERTS-NVERTS_CUTCELLS ! start cutcell counters after 'regular' cells
+      IFACECUT=NFACES-NFACES_CUTCELLS
+      DO KK = 1, KBAR
+         DO JJ = 1, JBAR
+            DO II = 1, IBAR
+               IF (CCVAR(II,JJ,KK,IBM_IDCC) <= 0) CYCLE
+               ICC = CCVAR(II,JJ,KK,IBM_IDCC)
+               DO JCC=1,CUT_CELL(ICC)%NCELL
+                  NFC=CUT_CELL(ICC)%CCELEM(1,JCC)
+                  ! Loop on faces corresponding to cut-cell ICC2:
+                  DO ICCF=1,NFC
+                     IFACE=CUT_CELL(ICC)%CCELEM(ICCF+1,JCC)
+                     SELECT CASE(CUT_CELL(ICC)%FACE_LIST(1,IFACE))
+                     CASE(IBM_FTYPE_RGGAS) ! REGULAR GASPHASE
+                        LOWHIGH = CUT_CELL(ICC)%FACE_LIST(2,IFACE)
+                        X1AXIS  = CUT_CELL(ICC)%FACE_LIST(3,IFACE)
+                        ILH     = LOWHIGH - 1
+                        I=II; J=JJ; K=KK;
+                        SELECT CASE(X1AXIS)
+                        CASE(IAXIS)
+                           I=II-FCELL+ILH
+                           DO KADD=-1,0
+                              DO JADD=-1,0
+                                 IVERTCUT = IVERTCUT + 1
+                                 VERTS(3*IVERTCUT-2) = REAL(X(I     ),FB)
+                                 VERTS(3*IVERTCUT-1) = REAL(Y(J+JADD),FB)
+                                 VERTS(3*IVERTCUT)   = REAL(Z(K+KADD),FB)
+                              ENDDO
+                           ENDDO
+                        CASE(JAXIS)
+                           J=JJ-FCELL+ILH
+                           DO IADD=-1,0
+                              DO KADD=-1,0
+                                 IVERTCUT = IVERTCUT + 1
+                                 VERTS(3*IVERTCUT-2) = REAL(X(I+IADD),FB)
+                                 VERTS(3*IVERTCUT-1) = REAL(Y(J     ),FB)
+                                 VERTS(3*IVERTCUT)   = REAL(Z(K+KADD),FB)
+                              ENDDO
+                           ENDDO
+                        CASE(KAXIS)
+                           K=KK-FCELL+ILH
+                           DO JADD=-1,0
+                              DO IADD=-1,0
+                                 IVERTCUT = IVERTCUT + 1
+                                 VERTS(3*IVERTCUT-2) = REAL(X(I+IADD),FB)
+                                 VERTS(3*IVERTCUT-1) = REAL(Y(J+JADD),FB)
+                                 VERTS(3*IVERTCUT)   = REAL(Z(K     ),FB)
+                              ENDDO
+                           ENDDO
+                        END SELECT
+                        IFACECUT = IFACECUT + 1
+                        LOCATIONS(IFACECUT) = 1 + 16
+                        FACES(3*IFACECUT-2:3*IFACECUT) = (/ IVERTCUT-3, IVERTCUT-2, IVERTCUT   /) ! Local Nodes 1, 2, 4
+
+                        IFACECUT = IFACECUT + 1
+                        LOCATIONS(IFACECUT) = 1 + 16
+                        FACES(3*IFACECUT-2:3*IFACECUT) = (/ IVERTCUT  , IVERTCUT-1, IVERTCUT-3 /) ! Local Nodes 4, 3, 1
+                     CASE(IBM_FTYPE_CFGAS)
+                        ICF2    = CUT_CELL(ICC)%FACE_LIST(4,IFACE)
+                        IFACE2  = CUT_CELL(ICC)%FACE_LIST(5,IFACE)
+                        X1AXIS  = CUT_FACE(ICF2)%IJK(KAXIS+1); DIR = X1AXIS
+                        NVF     = CUT_FACE(ICF2)%CFELEM(1,IFACE2)
+                        VERTBEG = IVERTCUT + 1
+                        VERTBEG = 3*VERTBEG - 2
+                        VERTEND = IVERTCUT + NVF
+                        VERTEND = 3*VERTEND
+                        DO IVCF=1,NVF
+                           IVERTCUT = IVERTCUT + 1
+                           IVERTCF=CUT_FACE(ICF2)%CFELEM(IVCF+1,IFACE2)
+                           VERTS(3*IVERTCUT-2:3*IVERTCUT) = REAL(CUT_FACE(ICF2)%XYZVERT(1:3,IVERTCF),FB)
+                        ENDDO
+                        FACEBEG = 3*(IFACECUT+1) - 2
+                        FACEEND = FACEBEG + 3*(NVF-2) - 1
+                        FACEPTR(1:3*(NVF-2))        =>FACES(FACEBEG:FACEEND)
+                        VERTPTR(1:1+VERTEND-VERTBEG)=>VERTS(VERTBEG:VERTEND)
+                        VERT_OFFSET = IVERTCUT - NVF
+                        ALLOCATE(LOCTYPE(NVF-2))
+                        CALL TRIANGULATE(DIR,VERTPTR,NVF,VERT_OFFSET,FACEPTR,LOCTYPE)
+                        DO IVCF = 1, NVF-2 ! for now assume face is convex
+                           IFACECUT = IFACECUT + 1
+                           LOCATIONS(IFACECUT) = 2 + LOCTYPE(IVCF)
+                           IF(IFACE2 > CUT_FACE(ICF2)%NFACE) LOCATIONS(IFACECUT) = 1 + LOCTYPE(IVCF) ! Solid side.
+                        ENDDO
+                        DEALLOCATE(LOCTYPE)
+                     CASE(IBM_FTYPE_CFINB)
+                        ICF2    = CUT_CELL(ICC)%FACE_LIST(4,IFACE)
+                        IFACE2  = CUT_CELL(ICC)%FACE_LIST(5,IFACE)
+                        NVF     = CUT_FACE(ICF2)%CFELEM(1,IFACE2); DIR = 0
+                        VERTBEG = IVERTCUT + 1
+                        VERTBEG = 3*VERTBEG - 2
+                        VERTEND = IVERTCUT + NVF
+                        VERTEND = 3*VERTEND
+                        DO IVCF=1,NVF
+                           IVERTCUT = IVERTCUT + 1
+                           IVERTCF=CUT_FACE(ICF2)%CFELEM(IVCF+1,IFACE2)
+                           VERTS(3*IVERTCUT-2:3*IVERTCUT) = REAL(CUT_FACE(ICF2)%XYZVERT(1:3,IVERTCF),FB)
+                        ENDDO
+                        FACEBEG = 3*(IFACECUT+1) - 2
+                        FACEEND = FACEBEG + 3*(NVF-2) - 1
+                        FACEPTR(1:3*(NVF-2))        =>FACES(FACEBEG:FACEEND)
+                        VERTPTR(1:1+VERTEND-VERTBEG)=>VERTS(VERTBEG:VERTEND)
+                        VERT_OFFSET = IVERTCUT - NVF
+                        ALLOCATE(LOCTYPE(NVF-2))
+                        CALL TRIANGULATE(DIR,VERTPTR,NVF,VERT_OFFSET,FACEPTR,LOCTYPE)
+                        DO IVCF = 1, NVF-2 ! for now assume face is convex
+                           IFACECUT = IFACECUT + 1
+                           LOCATIONS(IFACECUT) = 1 + LOCTYPE(IVCF) ! Consider them as SOLID.
+                        ENDDO
+                        DEALLOCATE(LOCTYPE)
+                     END SELECT
+                  ENDDO
+               ENDDO
+            ENDDO
+         ENDDO
+      ENDDO
    ENDIF
 END SUBROUTINE GET_GEOMINFO
 
 ! ---------------------------- GET_GEOMVALS ----------------------------------------
 
-SUBROUTINE GET_GEOMVALS(SLICETYPE,I1, I2, J1, J2, K1, K2,NFACES, NFACES_CUTCELLS, VALS)
+SUBROUTINE GET_GEOMVALS(NM,SLICETYPE,I1, I2, J1, J2, K1, K2,NFACES, NFACES_CUTCELLS, VALS,IND,Y_INDEX,Z_INDEX)
 USE COMPLEX_GEOMETRY
+USE PHYSICAL_FUNCTIONS, ONLY: GET_MASS_FRACTION
 
 ! copy data from QQ array into VALS(1:NFACES)
 
-INTEGER, INTENT(IN) :: I1, I2, J1, J2, K1, K2
+INTEGER, INTENT(IN) :: NM, I1, I2, J1, J2, K1, K2, IND,Y_INDEX,Z_INDEX
 INTEGER, INTENT(IN) :: NFACES, NFACES_CUTCELLS
 CHARACTER(*), INTENT(IN) :: SLICETYPE
 REAL(FB), INTENT(OUT), DIMENSION(NFACES) :: VALS
@@ -4127,6 +4487,9 @@ INTEGER :: I,J,K
 CHARACTER(LEN=100) :: SLICETYPE_LOCAL
 INTEGER :: CELLTYPE
 INTEGER :: ICF, NVF, IFACECF, IVCF, IFACECUT
+
+INTEGER :: X1AXIS, IEXIM, II, JJ, KK, ICC, JCC, NFC, ICCF, ICF2, IFACE2
+REAL(EB):: VAL_CF
 
 SLICETYPE_LOCAL=TRIM(SLICETYPE) ! only generate CUTCELLS slice files if the immersed geometry option is turned on
 IF (SLICETYPE=='INCLUDE_GEOM' .AND. .NOT.CC_IBM) SLICETYPE_LOCAL='IGNORE_GEOM'
@@ -4165,7 +4528,8 @@ IF (SLICETYPE_LOCAL=='IGNORE_GEOM') THEN
          END DO
       END DO
    ENDIF
-ELSE IF (SLICETYPE_LOCAL=='INCLUDE_GEOM') THEN
+ELSE IF (SLICETYPE_LOCAL=='INCLUDE_GEOM') THEN ! INTERP_C2F_FIELD
+   X1AXIS = DIR
    IFACE = 0
    IFACECUT=NFACES-NFACES_CUTCELLS  ! start cutcell counter after 'regular' cells
    IF (DIR==1) THEN
@@ -4174,19 +4538,35 @@ ELSE IF (SLICETYPE_LOCAL=='INCLUDE_GEOM') THEN
             CELLTYPE = FCVAR(SLICE,J,K,IBM_FGSC,IAXIS)
             IF (CELLTYPE == IBM_CUTCFE) THEN
                ICF = FCVAR(SLICE,J,K,IBM_IDCF,IAXIS) ! is a cut cell
-               DO IFACECF=1,IBM_CUT_FACE(ICF)%NFACE
-                  NVF=IBM_CUT_FACE(ICF)%CFELEM(1,IFACECF)
-                  DO IVCF = 1, NVF-2 ! for now assume face is convex
+               DO IFACECF=1,CUT_FACE(ICF)%NFACE
+                  CALL GET_GASCUTFACE_SCALAR_SLICE(X1AXIS,ICF,IFACECF,IND,Y_INDEX,Z_INDEX,VAL_CF)
+                  NVF=CUT_FACE(ICF)%CFELEM(1,IFACECF)
+                  DO IVCF = 1, NVF-2
                      IFACECUT = IFACECUT + 1
-                     VALS(IFACECUT) = CELLTYPE
+                     VALS(IFACECUT) = VAL_CF
                   ENDDO
                ENDDO
-            ELSE
+               CALL GET_SOLIDCUTFACE_SCALAR_SLICE(X1AXIS,ICF,IND,Y_INDEX,Z_INDEX,VAL_CF)
+               DO IFACECF=CUT_FACE(ICF)%NFACE+1,CUT_FACE(ICF)%NFACE+CUT_FACE(ICF)%NSFACE
+                  NVF=CUT_FACE(ICF)%CFELEM(1,IFACECF)
+                  DO IVCF = 1, NVF-2
+                     IFACECUT = IFACECUT + 1
+                     VALS(IFACECUT) = VAL_CF
+                  ENDDO
+               ENDDO
+            ELSEIF(CELLTYPE == IBM_SOLID) THEN
+               CALL GET_SOLIDREGFACE_SCALAR_SLICE(X1AXIS,SLICE,J,K,IND,Y_INDEX,Z_INDEX,VAL_CF)
                IFACE = IFACE + 1  ! is a solid or gas cell
-               VALS(IFACE) = CELLTYPE
+               VALS(IFACE) = VAL_CF
 
                IFACE = IFACE + 1
-               VALS(IFACE) = CELLTYPE
+               VALS(IFACE) = VAL_CF
+            ELSE
+               IFACE = IFACE + 1  ! is a gas cell
+               VALS(IFACE) = QQ(SLICE,J,K,1)
+
+               IFACE = IFACE + 1
+               VALS(IFACE) = QQ(SLICE,J,K,1)
             ENDIF
          END DO
       END DO
@@ -4196,19 +4576,35 @@ ELSE IF (SLICETYPE_LOCAL=='INCLUDE_GEOM') THEN
             CELLTYPE = FCVAR(I,SLICE,K,IBM_FGSC,JAXIS)
             IF (CELLTYPE == IBM_CUTCFE) THEN
                ICF = FCVAR(I,SLICE,K,IBM_IDCF,JAXIS)
-               DO IFACECF=1,IBM_CUT_FACE(ICF)%NFACE
-                  NVF=IBM_CUT_FACE(ICF)%CFELEM(1,IFACECF)
-                  DO IVCF = 1, NVF-2 ! for now assume face is convex
+               DO IFACECF=1,CUT_FACE(ICF)%NFACE
+                  CALL GET_GASCUTFACE_SCALAR_SLICE(X1AXIS,ICF,IFACECF,IND,Y_INDEX,Z_INDEX,VAL_CF)
+                  NVF=CUT_FACE(ICF)%CFELEM(1,IFACECF)
+                  DO IVCF = 1, NVF-2
                      IFACECUT = IFACECUT + 1
-                     VALS(IFACECUT) = CELLTYPE
+                     VALS(IFACECUT) = VAL_CF
                   ENDDO
                ENDDO
-            ELSE
-               IFACE = IFACE + 1
-               VALS(IFACE) = CELLTYPE
+               CALL GET_SOLIDCUTFACE_SCALAR_SLICE(X1AXIS,ICF,IND,Y_INDEX,Z_INDEX,VAL_CF)
+               DO IFACECF=CUT_FACE(ICF)%NFACE+1,CUT_FACE(ICF)%NFACE+CUT_FACE(ICF)%NSFACE
+                  NVF=CUT_FACE(ICF)%CFELEM(1,IFACECF)
+                  DO IVCF = 1, NVF-2
+                     IFACECUT = IFACECUT + 1
+                     VALS(IFACECUT) = VAL_CF
+                  ENDDO
+               ENDDO
+            ELSEIF(CELLTYPE == IBM_SOLID) THEN
+               CALL GET_SOLIDREGFACE_SCALAR_SLICE(X1AXIS,I,SLICE,K,IND,Y_INDEX,Z_INDEX,VAL_CF)
+               IFACE = IFACE + 1  ! is a solid or gas cell
+               VALS(IFACE) = VAL_CF
 
                IFACE = IFACE + 1
-               VALS(IFACE) = CELLTYPE
+               VALS(IFACE) = VAL_CF
+            ELSE
+               IFACE = IFACE + 1
+               VALS(IFACE) = QQ(I,SLICE,K,1)
+
+               IFACE = IFACE + 1
+               VALS(IFACE) = QQ(I,SLICE,K,1)
             ENDIF
          END DO
       END DO
@@ -4218,24 +4614,114 @@ ELSE IF (SLICETYPE_LOCAL=='INCLUDE_GEOM') THEN
             CELLTYPE = FCVAR(I,J,SLICE,IBM_FGSC,KAXIS)
             IF (CELLTYPE == IBM_CUTCFE) THEN
                ICF = FCVAR(I,J,SLICE,IBM_IDCF,KAXIS)
-               DO IFACECF=1,IBM_CUT_FACE(ICF)%NFACE
-                  NVF=IBM_CUT_FACE(ICF)%CFELEM(1,IFACECF)
-                  DO IVCF = 1, NVF-2 ! for now assume face is convex
+               DO IFACECF=1,CUT_FACE(ICF)%NFACE
+                  CALL GET_GASCUTFACE_SCALAR_SLICE(X1AXIS,ICF,IFACECF,IND,Y_INDEX,Z_INDEX,VAL_CF)
+                  NVF=CUT_FACE(ICF)%CFELEM(1,IFACECF)
+                  DO IVCF = 1, NVF-2
                      IFACECUT = IFACECUT + 1
-                     VALS(IFACECUT) = CELLTYPE
+                     VALS(IFACECUT) = VAL_CF
                   ENDDO
                ENDDO
-            ELSE
-               IFACE = IFACE + 1
-               VALS(IFACE) = CELLTYPE
+               CALL GET_SOLIDCUTFACE_SCALAR_SLICE(X1AXIS,ICF,IND,Y_INDEX,Z_INDEX,VAL_CF)
+               DO IFACECF=CUT_FACE(ICF)%NFACE+1,CUT_FACE(ICF)%NFACE+CUT_FACE(ICF)%NSFACE
+                  NVF=CUT_FACE(ICF)%CFELEM(1,IFACECF)
+                  DO IVCF = 1, NVF-2
+                     IFACECUT = IFACECUT + 1
+                     VALS(IFACECUT) = VAL_CF
+                  ENDDO
+               ENDDO
+            ELSEIF(CELLTYPE == IBM_SOLID) THEN
+               CALL GET_SOLIDREGFACE_SCALAR_SLICE(X1AXIS,I,J,SLICE,IND,Y_INDEX,Z_INDEX,VAL_CF)
+               IFACE = IFACE + 1  ! is a solid or gas cell
+               VALS(IFACE) = VAL_CF
 
                IFACE = IFACE + 1
-               VALS(IFACE) = CELLTYPE
+               VALS(IFACE) = VAL_CF
+            ELSE
+               IFACE = IFACE + 1
+               VALS(IFACE) = QQ(I,J,SLICE,1)
+
+               IFACE = IFACE + 1
+               VALS(IFACE) = QQ(I,J,SLICE,1)
             ENDIF
          END DO
       END DO
    ENDIF
+ELSE IF (SLICETYPE_LOCAL=='INBOUND_FACES') THEN
+   IFACECUT=NFACES-NFACES_CUTCELLS  ! start cutcell counter after 'regular' cells
+   DO K=1,KBAR
+      DO J=1,JBAR
+         DO I=1,IBAR
+         IF (CCVAR(I,J,K,IBM_IDCF) > 0) THEN
+            ICF = CCVAR(I,J,K,IBM_IDCF)
+            DO IFACECF=1,CUT_FACE(ICF)%NFACE
+               VAL_CF = SOLID_PHASE_OUTPUT(NM,ABS(IND),Y_INDEX,Z_INDEX,-11, &
+                                           OPT_CFACE_INDEX=CUT_FACE(ICF)%CFACE_INDEX(IFACECF))
+               NVF=CUT_FACE(ICF)%CFELEM(1,IFACECF)
+               DO IVCF = 1, NVF-2 ! face is convex
+                  IFACECUT = IFACECUT + 1
+                  VALS(IFACECUT) = VAL_CF
+               ENDDO
+            ENDDO
+         ENDIF
+         ENDDO
+      ENDDO
+   ENDDO
+ELSE IF (SLICETYPE_LOCAL=='EXIMBND_FACES') THEN
+   IFACECUT=NFACES-NFACES_CUTCELLS  ! start cutcell counter after 'regular' cells
+   DO IEXIM=1,IBM_NEXIMFACE_MESH
+      CALL GET_EXIMFACE_SCALAR_SLICE(IEXIM,IND,Y_INDEX,Z_INDEX,VAL_CF)
+      DO IVCF = 1,2
+         IFACECUT = IFACECUT + 1
+         VALS(IFACECUT) = VAL_CF
+      ENDDO
+   ENDDO
+ELSE IF (SLICETYPE_LOCAL=='CUT_CELLS') THEN
+   IFACECUT=NFACES-NFACES_CUTCELLS
+   VAL_CF=0.
+   DO KK = 1, KBAR
+      DO JJ = 1, JBAR
+         DO II = 1, IBAR
+            IF (CCVAR(II,JJ,KK,IBM_IDCC) <= 0) CYCLE
+            ICC = CCVAR(II,JJ,KK,IBM_IDCC)
+            DO JCC=1,CUT_CELL(ICC)%NCELL
+               NFC=CUT_CELL(ICC)%CCELEM(1,JCC)
+               ! Loop on faces corresponding to cut-cell ICC2:
+               DO ICCF=1,NFC
+                  IFACE=CUT_CELL(ICC)%CCELEM(ICCF+1,JCC)
+                  SELECT CASE(CUT_CELL(ICC)%FACE_LIST(1,IFACE))
+                  CASE(IBM_FTYPE_RGGAS) ! REGULAR GASPHASE
+                     DO IVCF = 1,2
+                        IFACECUT = IFACECUT + 1
+                        VALS(IFACECUT) = VAL_CF
+                     ENDDO
+
+                  CASE(IBM_FTYPE_CFGAS)
+                     ICF2    = CUT_CELL(ICC)%FACE_LIST(4,IFACE)
+                     IFACE2  = CUT_CELL(ICC)%FACE_LIST(5,IFACE)
+                     NVF     = CUT_FACE(ICF2)%CFELEM(1,IFACE2)
+                     DO IVCF = 1, NVF-2 ! for now assume face is convex
+                        IFACECUT = IFACECUT + 1
+                        VALS(IFACECUT) = VAL_CF
+                     ENDDO
+
+                  CASE(IBM_FTYPE_CFINB)
+                     ICF2    = CUT_CELL(ICC)%FACE_LIST(4,IFACE)
+                     IFACE2  = CUT_CELL(ICC)%FACE_LIST(5,IFACE)
+                     NVF     = CUT_FACE(ICF2)%CFELEM(1,IFACE2); DIR = 0
+                     DO IVCF = 1, NVF-2 ! face is convex
+                        IFACECUT = IFACECUT + 1
+                        VALS(IFACECUT) = VAL_CF
+                     ENDDO
+
+                  END SELECT
+               ENDDO
+            ENDDO
+         ENDDO
+      ENDDO
+   ENDDO
 ENDIF
+
 END SUBROUTINE GET_GEOMVALS
 
 ! ---------------------------- DUMP_SLICE_GEOM ----------------------------------------
@@ -4289,9 +4775,9 @@ END SUBROUTINE DUMP_SLICE_GEOM
 
 ! ---------------------------- DUMP_SLICE_GEOM_DATA ----------------------------------------
 
-SUBROUTINE DUMP_SLICE_GEOM_DATA(FUNIT,SLICETYPE,HEADER,STIME,I1,I2,J1,J2,K1,K2)
+SUBROUTINE DUMP_SLICE_GEOM_DATA(NM,FUNIT,SLICETYPE,HEADER,STIME,I1,I2,J1,J2,K1,K2,IND,Y_INDEX,Z_INDEX)
 CHARACTER(*), INTENT(IN) :: SLICETYPE
-INTEGER, INTENT(IN) :: FUNIT, HEADER, I1, I2, J1, J2, K1, K2
+INTEGER, INTENT(IN) :: NM, FUNIT, HEADER, I1, I2, J1, J2, K1, K2, IND, Y_INDEX, Z_INDEX
 REAL(FB), INTENT(IN) :: STIME
 
 INTEGER, PARAMETER :: ONE_INTEGER=1, ZERO_INTEGER=0, VERSION=2
@@ -4302,7 +4788,7 @@ REAL(FB), ALLOCATABLE, DIMENSION(:) :: VALS
 CALL GET_GEOMSIZES(SLICETYPE,I1,I2,J1,J2,K1,K2,NVERTS,NVERTS_CUTCELLS,NFACES,NFACES_CUTCELLS)
 IF (NVERTS>0 .AND. NFACES>0) THEN
    ALLOCATE(VALS(NFACES))
-   CALL GET_GEOMVALS(SLICETYPE,I1, I2, J1, J2, K1, K2,NFACES,NFACES_CUTCELLS,VALS)
+   CALL GET_GEOMVALS(NM,SLICETYPE,I1, I2, J1, J2, K1, K2,NFACES,NFACES_CUTCELLS,VALS,IND,Y_INDEX,Z_INDEX)
 ELSE
    NVERTS=0
    NFACES=0
@@ -4337,7 +4823,7 @@ INTEGER :: IFRMT,I,J,K,NQT,I1,I2,J1,J2,K1,K2,ITM,ITM1,IQ,IQQ,IND,IND2,II1,II2,JJ
 INTEGER :: KTS,NTSL
 REAL(EB), POINTER, DIMENSION(:,:,:) :: C=>NULL(),B=>NULL(),S=>NULL(),QUANTITY=>NULL()
 REAL(FB) :: ZERO,STIME
-LOGICAL :: P_FLUX,PLOT3D,SLCF3D
+LOGICAL :: PLOT3D,SLCF3D
 LOGICAL :: AGL_TERRAIN_SLICE,CC_CELL_CENTERED,CC_FACE_CENTERED
 
 ! Return if there are no slices to process and this is not a Plot3D dump
@@ -4403,19 +4889,11 @@ ENDDO
 
 ! If sprinkler diagnostic on, pre-compute various PARTICLE flux output
 
-P_FLUX = .FALSE.
 IF (.NOT.PLOT3D) THEN
-   DO IQ=1,N_SLCF
-      SL => SLICE(IQ)
-      IF (OUTPUT_QUANTITY(SL%INDEX)%INTEGRATED_PARTICLES) P_FLUX = .TRUE.
-   ENDDO
+   IF (SLCF_PARTICLE_FLUX .AND. .NOT.EVACUATION_ONLY(NM)) CALL COMPUTE_PARTICLE_FLUXES(NM)
 ELSE
-   DO IQ=1,5
-      IF (OUTPUT_QUANTITY(PLOT3D_QUANTITY_INDEX(IQ))%INTEGRATED_PARTICLES) P_FLUX = .TRUE.
-   ENDDO
+   IF (PL3D_PARTICLE_FLUX .AND. .NOT.EVACUATION_ONLY(NM)) CALL COMPUTE_PARTICLE_FLUXES(NM)
 ENDIF
-
-IF (P_FLUX .AND. .NOT.EVACUATION_ONLY(NM)) CALL COMPUTE_PARTICLE_FLUXES(NM)
 
 ! Determine slice or Plot3D indicies
 
@@ -4424,7 +4902,7 @@ QUANTITY=>WORK7
 IF (PLOT3D) THEN  ! Write out information to .smv file
    TT   = T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR
    ITM  = INT(TT)
-   ITM1 = ABS(TT-ITM)*100
+   ITM1 = INT(ABS(TT-ITM)*100)
    IF (ITM <0 ) THEN
       WRITE(FN_PL3D(NM),'(A,A,I4.4,A1,I8.7,A,I2.2,A2)') TRIM(CHID),'_',NM,'_',ITM,'_',ITM1,'.q'
    ELSE
@@ -4560,22 +5038,22 @@ QUANTITY_LOOP: DO IQ=1,NQT
            DO I=I1,I2
               SELECT CASE(OUTPUT_QUANTITY(IND)%CELL_POSITION)
                  CASE(CELL_CENTER)
-                    QQ(I,J,K,IQQ) = CORNER_VALUE(QUANTITY,B,S,IND)
+                    QQ(I,J,K,IQQ) = REAL(CORNER_VALUE(QUANTITY,B,S,IND),FB)
                  CASE(CELL_FACE)
-                    QQ(I,J,K,IQQ) = FACE_VALUE(QUANTITY,C,OUTPUT_QUANTITY(IND)%IOR,IND)
+                    QQ(I,J,K,IQQ) = REAL(FACE_VALUE(QUANTITY,C,OUTPUT_QUANTITY(IND)%IOR,IND),FB)
                     IC = CELL_INDEX(I,J,K)
                     IF (IC>0) THEN
                        SELECT CASE(IND)
                           CASE(6)
-                             IF (UVW_GHOST(IC,1)>-1.E5_EB) QQ(I,J,K,IQQ) = UVW_GHOST(IC,1)
+                             IF (UVW_GHOST(IC,1)>-1.E5_EB) QQ(I,J,K,IQQ) = REAL(UVW_GHOST(IC,1),FB)
                           CASE(7)
-                             IF (UVW_GHOST(IC,2)>-1.E5_EB) QQ(I,J,K,IQQ) = UVW_GHOST(IC,2)
+                             IF (UVW_GHOST(IC,2)>-1.E5_EB) QQ(I,J,K,IQQ) = REAL(UVW_GHOST(IC,2),FB)
                           CASE(8)
-                             IF (UVW_GHOST(IC,3)>-1.E5_EB) QQ(I,J,K,IQQ) = UVW_GHOST(IC,3)
+                             IF (UVW_GHOST(IC,3)>-1.E5_EB) QQ(I,J,K,IQQ) = REAL(UVW_GHOST(IC,3),FB)
                        END SELECT
                     ENDIF
                  CASE(CELL_EDGE)
-                    QQ(I,J,K,IQQ) = EDGE_VALUE(QUANTITY,S,IND)
+                    QQ(I,J,K,IQQ) = REAL(EDGE_VALUE(QUANTITY,S,IND),FB)
               END SELECT
            ENDDO
         ENDDO
@@ -4587,7 +5065,7 @@ QUANTITY_LOOP: DO IQ=1,NQT
       DO K=KK1,KK2
          DO J=JJ1,JJ2
             DO I=II1,II2
-               QQ(I,J,K,IQQ) = QUANTITY(I,J,K)
+               QQ(I,J,K,IQQ) = REAL(QUANTITY(I,J,K),FB)
             ENDDO
          ENDDO
       ENDDO
@@ -4601,7 +5079,7 @@ QUANTITY_LOOP: DO IQ=1,NQT
             DO I=II1,II2
             !xxx need to change the following code to use face centered interpolation
             ! (perhaps copy some variant of node centered interpolation code above)
-               QQ(I,J,K,IQQ) = QUANTITY(I,J,K)
+               QQ(I,J,K,IQQ) = REAL(QUANTITY(I,J,K),FB)
             ENDDO
          ENDDO
       ENDDO
@@ -4612,13 +5090,14 @@ QUANTITY_LOOP: DO IQ=1,NQT
    IF (.NOT.PLOT3D) THEN
       SL => SLICE(IQ)
       IF (SL%SLICETYPE=='STRUCTURED') THEN ! write out slice file using original slice file format
-         STIME = T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR
+         STIME = REAL(T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR,FB)
          OPEN(LU_SLCF(IQ,NM),FILE=FN_SLCF(IQ,NM),FORM='UNFORMATTED',STATUS='OLD',POSITION='APPEND')
          WRITE(LU_SLCF(IQ,NM)) STIME
          WRITE(LU_SLCF(IQ,NM)) (((QQ(I,J,K,1),I=I1,I2),J=J1,J2),K=K1,K2)
          CLOSE(LU_SLCF(IQ,NM))
       ELSE
-      ! write geometry for slice file
+         STIME = REAL(T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR,FB)
+         ! write geometry for slice file
          IF (ABS(STIME-T_BEGIN)<TWO_EPSILON_EB) THEN
          ! geometry and data file at first time step
             OPEN(LU_SLCF_GEOM(IQ,NM),FILE=FN_SLCF_GEOM(IQ,NM),FORM='UNFORMATTED',STATUS='REPLACE')
@@ -4626,12 +5105,12 @@ QUANTITY_LOOP: DO IQ=1,NQT
             CLOSE(LU_SLCF_GEOM(IQ,NM))
 
             OPEN(LU_SLCF(IQ,NM),FILE=FN_SLCF(IQ,NM),FORM='UNFORMATTED',STATUS='REPLACE')
-            CALL DUMP_SLICE_GEOM_DATA(LU_SLCF(IQ,NM),SL%SLICETYPE,1,STIME,I1,I2,J1,J2,K1,K2)
+            CALL DUMP_SLICE_GEOM_DATA(NM,LU_SLCF(IQ,NM),SL%SLICETYPE,1,STIME,I1,I2,J1,J2,K1,K2,IND,Y_INDEX,Z_INDEX)
             CLOSE(LU_SLCF(IQ,NM))
          ELSE
          ! data file at subsequent time steps
             OPEN(LU_SLCF(IQ,NM),FILE=FN_SLCF(IQ,NM),FORM='UNFORMATTED',STATUS='OLD',POSITION='APPEND')
-            CALL DUMP_SLICE_GEOM_DATA(LU_SLCF(IQ,NM),SL%SLICETYPE,0,STIME,I1,I2,J1,J2,K1,K2)
+            CALL DUMP_SLICE_GEOM_DATA(NM,LU_SLCF(IQ,NM),SL%SLICETYPE,0,STIME,I1,I2,J1,J2,K1,K2,IND,Y_INDEX,Z_INDEX)
             CLOSE(LU_SLCF(IQ,NM))
          ENDIF
       ENDIF
@@ -4728,8 +5207,9 @@ USE MEMORY_FUNCTIONS, ONLY : RE_ALLOCATE_STRINGS,GET_LAGRANGIAN_PARTICLE_INDEX
 USE EVAC, ONLY: N_DOORS, N_EXITS, N_ENTRYS, EVAC_DOORS, EVAC_EXITS, EVAC_ENTRYS, EMESH_INDEX
 REAL(EB), INTENT(IN) :: T,DT
 REAL(EB) :: VALUE,VALUE2,STAT_VALUE,SUM_VALUE,VOL,WGT_LINE,T_TMP,DVAL,DVAL2,DEV2,WGT_UNBIASED_LINE,WGT
-INTEGER :: NM,N,I,J,K,STAT_COUNT,IW,SURF_INDEX,I_STATE,IND,LP_INDEX,LOCATION_INDICES(3)
-LOGICAL :: NOT_FOUND,P_FLUX
+INTEGER, INTENT(IN) :: NM
+INTEGER :: N,I,J,K,STAT_COUNT,IW,SURF_INDEX,I_STATE,IND,LP_INDEX,LOCATION_INDICES(3)
+LOGICAL :: NOT_FOUND
 
 CALL POINT_TO_MESH(NM)
 
@@ -4745,14 +5225,7 @@ ENDIF
 
 ! If any device has QUANTITY='PARTICLE FLUX N', pre-compute PARTICLE fluxes
 
-P_FLUX = .FALSE.
-
-DO N=1,N_DEVC
-   DV => DEVICE(N)
-   IF (OUTPUT_QUANTITY(DV%OUTPUT_INDEX)%INTEGRATED_PARTICLES) P_FLUX = .TRUE.
-ENDDO
-
-IF (P_FLUX .AND. .NOT.EVACUATION_ONLY(NM)) CALL COMPUTE_PARTICLE_FLUXES(NM)
+IF (DEVC_PARTICLE_FLUX .AND. .NOT.EVACUATION_ONLY(NM)) CALL COMPUTE_PARTICLE_FLUXES(NM)
 
 ! Loop over all devices and determine its current VALUE
 
@@ -4842,32 +5315,33 @@ DEVICE_LOOP: DO N=1,N_DEVC
             CASE DEFAULT SOLID_STATS_SELECT
 
                WALL_CELL_LOOP: DO IW=1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
-                  IF (WALL(IW)%BOUNDARY_TYPE/=SOLID_BOUNDARY) CYCLE WALL_CELL_LOOP
-                  IF (WALL(IW)%XW<DV%X1-MICRON .OR. WALL(IW)%XW>DV%X2+MICRON .OR. &
-                      WALL(IW)%YW<DV%Y1-MICRON .OR. WALL(IW)%YW>DV%Y2+MICRON .OR. &
-                      WALL(IW)%ZW<DV%Z1-MICRON .OR. WALL(IW)%ZW>DV%Z2+MICRON) CYCLE WALL_CELL_LOOP
-                  SURF_INDEX = WALL(IW)%SURF_INDEX
-                  IF (DV%SURF_ID=='null' .OR. SURFACE(SURF_INDEX)%ID==DV%SURF_ID) THEN
-                     NOT_FOUND = .FALSE.
-                     VALUE = SOLID_PHASE_OUTPUT(NM,ABS(DV%OUTPUT_INDEX),DV%Y_INDEX,DV%Z_INDEX,DV%PART_INDEX,OPT_WALL_INDEX=IW)
-                     SELECT CASE(DV%STATISTICS)
-                        CASE('MAX')
-                           IF (VALUE>STAT_VALUE) LOCATION_INDICES(1:3) = (/WALL(IW)%ONE_D%II,WALL(IW)%ONE_D%JJ,WALL(IW)%ONE_D%KK/)
-                           STAT_VALUE = MAX(STAT_VALUE,VALUE)
-                        CASE('MIN')
-                           IF (VALUE<STAT_VALUE) LOCATION_INDICES(1:3) = (/WALL(IW)%ONE_D%II,WALL(IW)%ONE_D%JJ,WALL(IW)%ONE_D%KK/)
-                           STAT_VALUE = MIN(STAT_VALUE,VALUE)
-                        CASE('MEAN')
-                           STAT_VALUE = STAT_VALUE + VALUE
-                           STAT_COUNT = STAT_COUNT + 1
-                        CASE('SURFACE INTEGRAL')
-                           IF (VALUE <= DV%QUANTITY_RANGE(2) .AND. VALUE >=DV%QUANTITY_RANGE(1)) &
-                              STAT_VALUE = STAT_VALUE + VALUE*WALL(IW)%AW
-                        CASE('SURFACE AREA')
-                           IF (VALUE <= DV%QUANTITY_RANGE(2) .AND. VALUE >=DV%QUANTITY_RANGE(1)) &
-                              STAT_VALUE = STAT_VALUE + WALL(IW)%AW
-                     END SELECT
-                  ENDIF
+                  WC => WALL(IW)
+                  IF (WC%BOUNDARY_TYPE/=SOLID_BOUNDARY) CYCLE WALL_CELL_LOOP
+                  SURF_INDEX = WC%SURF_INDEX
+                  IF (DV%IOR/=0 .AND. DV%IOR/=WC%ONE_D%IOR) CYCLE WALL_CELL_LOOP
+                  IF (DV%SURF_ID/='null' .AND. SURFACE(SURF_INDEX)%ID/=DV%SURF_ID) CYCLE WALL_CELL_LOOP
+                  IF (WC%XW<DV%X1-0.5_EB*DX(WC%ONE_D%II)-MICRON .OR. WC%XW>DV%X2+0.5_EB*DX(WC%ONE_D%II)+MICRON .OR. &
+                      WC%YW<DV%Y1-0.5_EB*DY(WC%ONE_D%JJ)-MICRON .OR. WC%YW>DV%Y2+0.5_EB*DY(WC%ONE_D%JJ)+MICRON .OR. &
+                      WC%ZW<DV%Z1-0.5_EB*DZ(WC%ONE_D%KK)-MICRON .OR. WC%ZW>DV%Z2+0.5_EB*DZ(WC%ONE_D%KK)+MICRON) CYCLE WALL_CELL_LOOP
+                  NOT_FOUND = .FALSE.
+                  VALUE = SOLID_PHASE_OUTPUT(NM,ABS(DV%OUTPUT_INDEX),DV%Y_INDEX,DV%Z_INDEX,DV%PART_INDEX,OPT_WALL_INDEX=IW)
+                  SELECT CASE(DV%STATISTICS)
+                     CASE('MAX')
+                        IF (VALUE>STAT_VALUE) LOCATION_INDICES(1:3) = (/WC%ONE_D%II,WC%ONE_D%JJ,WC%ONE_D%KK/)
+                        STAT_VALUE = MAX(STAT_VALUE,VALUE)
+                     CASE('MIN')
+                        IF (VALUE<STAT_VALUE) LOCATION_INDICES(1:3) = (/WC%ONE_D%II,WC%ONE_D%JJ,WC%ONE_D%KK/)
+                        STAT_VALUE = MIN(STAT_VALUE,VALUE)
+                     CASE('MEAN')
+                        STAT_VALUE = STAT_VALUE + VALUE
+                        STAT_COUNT = STAT_COUNT + 1
+                     CASE('SURFACE INTEGRAL')
+                        IF (VALUE <= DV%QUANTITY_RANGE(2) .AND. VALUE >=DV%QUANTITY_RANGE(1)) &
+                           STAT_VALUE = STAT_VALUE + VALUE*WC%AW
+                     CASE('SURFACE AREA')
+                        IF (VALUE <= DV%QUANTITY_RANGE(2) .AND. VALUE >=DV%QUANTITY_RANGE(1)) &
+                           STAT_VALUE = STAT_VALUE + WC%AW
+                  END SELECT
                ENDDO WALL_CELL_LOOP
 
          END SELECT SOLID_STATS_SELECT
@@ -4878,7 +5352,11 @@ DEVICE_LOOP: DO N=1,N_DEVC
 
             CASE('null','RMS','TIME MIN','TIME MAX') GAS_STATS_SELECT
 
-               VALUE = GAS_PHASE_OUTPUT(DV%I,DV%J,DV%K,DV%OUTPUT_INDEX,0,DV%Y_INDEX,DV%Z_INDEX,DV%PART_INDEX,DV%VELO_INDEX,&
+               I = MIN( IBP1, MAX(0, DV%I + DV%GHOST_CELL_IOR(1) ) )
+               J = MIN( JBP1, MAX(0, DV%J + DV%GHOST_CELL_IOR(2) ) )
+               K = MIN( KBP1, MAX(0, DV%K + DV%GHOST_CELL_IOR(3) ) )
+
+               VALUE = GAS_PHASE_OUTPUT(I,J,K,DV%OUTPUT_INDEX,0,DV%Y_INDEX,DV%Z_INDEX,DV%PART_INDEX,DV%VELO_INDEX,&
                                         DV%PIPE_INDEX,DV%PROP_INDEX,DV%REAC_INDEX,T,DT,NM)
 
             CASE('COV','CORRCOEF') GAS_STATS_SELECT
@@ -5252,9 +5730,7 @@ USE MEMORY_FUNCTIONS, ONLY: REALLOCATE
 USE MATH_FUNCTIONS, ONLY: INTERPOLATE1D,INTERPOLATE1D_UNIFORM,EVALUATE_RAMP,UPDATE_HISTOGRAM
 USE PHYSICAL_FUNCTIONS, ONLY: GET_MASS_FRACTION,FED,FIC,GET_SPECIFIC_HEAT,GET_AVERAGE_SPECIFIC_HEAT,RELATIVE_HUMIDITY, &
                               GET_CONDUCTIVITY,GET_MOLECULAR_WEIGHT,GET_MASS_FRACTION_ALL,GET_SENSIBLE_ENTHALPY, &
-                              LES_FILTER_WIDTH_FUNCTION,GET_VISCOSITY,GET_POTENTIAL_TEMPERATURE,GET_SPECIFIC_GAS_CONSTANT,&
-                              GET_EQUILIBRIUM
-USE CONTROL_VARIABLES, ONLY: CONTROL
+                              LES_FILTER_WIDTH_FUNCTION,GET_VISCOSITY,GET_POTENTIAL_TEMPERATURE,GET_SPECIFIC_GAS_CONSTANT
 USE SCRC, ONLY: SCARC_ITERATIONS, SCARC_RESIDUAL, SCARC_CAPPA
 USE RADCONS, ONLY: WL_LOW, WL_HIGH, RADTMP
 USE RAD, ONLY: BLACKBODY_FRACTION
@@ -5264,15 +5740,15 @@ REAL(EB), INTENT(IN) :: T,DT
 INTEGER, INTENT(IN) :: II,JJ,KK,IND,IND2,NM,VELO_INDEX,PIPE_INDEX,PROP_INDEX,REAC_INDEX
 REAL(EB) :: FLOW,HMFAC,H_TC,TMP_TC,RE_D,NUSSELT,AREA,VEL,K_G,MU_G,&
             Q_SUM,TMP_G,UU,VV,WW,VEL2,Y_MF_INT,PATHLENGTH,EXT_COEF,MASS_EXT_COEF,ZZ_FUEL,ZZ_OX,&
-            VELSR,WATER_VOL_FRAC,RHS,DT_C,DT_E,T_RATIO,Y_E_LAG, H_G,H_G_SUM,CPBAR,CP,CP2,ZZ_GET(1:N_TRACKED_SPECIES),RCON,&
+            VELSR,WATER_VOL_FRAC,RHS,DT_C,DT_E,T_RATIO,Y_E_LAG, H_G,H_G_SUM,CPBAR,CP,ZZ_GET(1:N_TRACKED_SPECIES),RCON,&
             EXPON,Y_SPECIES,MEC,Y_SPECIES2,Y_H2O,R_Y_H2O,R_DN,SGN,Y_ALL(N_SPECIES),H_S,D_Z_N(0:5000),&
             DISSIPATION_RATE,S11,S22,S33,S12,S13,S23,DUDX,DUDY,DUDZ,DVDX,DVDY,DVDZ,DWDX,DWDY,DWDZ,ONTHDIV,SS,ETA,DELTA,R_DX2,&
-            UVW,UODX,VODY,WODZ,MW,XHAT,ZHAT,A_D,Q_D,Q_D_1,Y_EQ,T_EQ,M_G,M_D,M_L,H_L,H_V,P_RATIO,TMP_D
-REAL(FB) :: TMPUP,TMPLOW,ZINT,RHO2,BBF
+            UVW,UODX,VODY,WODZ,MW,XHAT,ZHAT,BBF,RHO2,TMPUP,TMPLOW,ZINT
 INTEGER :: N,I,J,K,NN,IL,III,JJJ,KKK,Y_INDEX,Z_INDEX,PART_INDEX,IP,JP,KP,FLOW_INDEX,IW,FED_ACTIVITY,&
-           IP1,JP1,KP1,IM1,JM1,KM1,IIM1,JJM1,KKM1,NR,NS,RAM,ITMP
+           IP1,JP1,KP1,IM1,JM1,KM1,IIM1,JJM1,KKM1,NR,NS,RAM
 CHARACTER(MESSAGE_LENGTH) :: MESSAGE
 REAL(EB), PARAMETER :: EPS=1.E-10_EB
+REAL :: CPUTIME
 
 ! Get species mass fraction if necessary
 
@@ -5335,14 +5811,15 @@ IND_SELECT: SELECT CASE(IND)
    CASE(12)  ! H
       GAS_PHASE_OUTPUT_RES = H(II,JJ,KK)
    CASE(13)  ! MIXTURE FRACTION
-      GAS_PHASE_OUTPUT_RES = ZZ(II,JJ,KK,REACTION(1)%FUEL_SMIX_INDEX)+ZZ(II,JJ,KK,Z_INDEX)* &
-      SPECIES_MIXTURE(REACTION(1)%FUEL_SMIX_INDEX)%MW/(SPECIES_MIXTURE(Z_INDEX)%MW*REACTION(1)%NU(Z_INDEX))
+      ! requires FUEL + AIR --> PROD (SIMPLE_CHEMISTRY)
+      ! f = Z_FUEL + Z_PROD/(1+S), where S is the mass stoichiometric coefficient for AIR
+      GAS_PHASE_OUTPUT_RES = ZZ(II,JJ,KK,REACTION(1)%FUEL_SMIX_INDEX)+ZZ(II,JJ,KK,REACTION(1)%N_SMIX)/(1._EB+REACTION(1)%S)
    CASE(14)  ! DIVERGENCE
       GAS_PHASE_OUTPUT_RES = D(II,JJ,KK)
    CASE(15)  ! MIXING TIME
       GAS_PHASE_OUTPUT_RES = MIX_TIME(II,JJ,KK)
    CASE(16)  ! ABSORPTION COEFFICIENT
-      GAS_PHASE_OUTPUT_RES = KAPPA(II,JJ,KK)
+      GAS_PHASE_OUTPUT_RES = KAPPA_GAS(II,JJ,KK)
    CASE(17)  ! VISCOSITY
       GAS_PHASE_OUTPUT_RES = MU(II,JJ,KK)
    CASE(18)  ! INTEGRATED INTENSITY
@@ -5427,7 +5904,7 @@ IND_SELECT: SELECT CASE(IND)
       CALL GET_MOLECULAR_WEIGHT(ZZ_GET,GAS_PHASE_OUTPUT_RES)
 
    CASE(36)  ! POTENTIAL TEMPERATURE
-      GAS_PHASE_OUTPUT_RES = GET_POTENTIAL_TEMPERATURE(TMP(II,JJ,KK),II,JJ,KK,NM)
+      GAS_PHASE_OUTPUT_RES = GET_POTENTIAL_TEMPERATURE(TMP(II,JJ,KK),ZC(KK))
 
    CASE(37)  ! DIFFUSIVITY
       IF (LES) THEN
@@ -5447,6 +5924,8 @@ IND_SELECT: SELECT CASE(IND)
          ENDIF
       ENDIF
 
+   CASE(38)  ! RTE SOURCE CORRECTION FACTOR
+      GAS_PHASE_OUTPUT_RES = RTE_SOURCE_CORRECTION_FACTOR
    CASE(39)  ! RAM (non-standard. You must uncomment GETPID in func.f90/SYSTEM_MEM_USAGE to use this quantity.)
       CALL SYSTEM_MEM_USAGE(RAM)
       GAS_PHASE_OUTPUT_RES = REAL(RAM,EB)/1000._EB
@@ -5455,15 +5934,16 @@ IND_SELECT: SELECT CASE(IND)
    CASE(41)  ! TIME STEP
       GAS_PHASE_OUTPUT_RES = DT
    CASE(42)  ! WALL CLOCK TIME
-      GAS_PHASE_OUTPUT_RES = WALL_CLOCK_TIME() - WALL_CLOCK_START
+      GAS_PHASE_OUTPUT_RES = SECOND() - WALL_CLOCK_START
    CASE(43)  ! WALL CLOCK TIME ITERATIONS
       IF (INITIALIZATION_PHASE) THEN
          GAS_PHASE_OUTPUT_RES = 0._EB
       ELSE
-         GAS_PHASE_OUTPUT_RES = WALL_CLOCK_TIME() - WALL_CLOCK_START_ITERATIONS
+         GAS_PHASE_OUTPUT_RES = SECOND() - WALL_CLOCK_START_ITERATIONS
       ENDIF
    CASE(44)  ! CPU TIME
-      GAS_PHASE_OUTPUT_RES = SECOND() - T_USED(1)
+      CALL CPU_TIME(CPUTIME)
+      GAS_PHASE_OUTPUT_RES = CPUTIME - CPU_TIME_START
    CASE(45)  ! ITERATION
       GAS_PHASE_OUTPUT_RES = ICYC
 
@@ -5610,6 +6090,8 @@ IND_SELECT: SELECT CASE(IND)
       DELTA = LES_FILTER_WIDTH_FUNCTION(DX(III),DY(JJJ),DZ(KKK))
       ETA = GAS_PHASE_OUTPUT(II,JJ,KK,85,IND2,Y_INDEX,Z_INDEX,PART_INDEX,VELO_INDEX,PIPE_INDEX,PROP_INDEX,REAC_INDEX,T,DT,NM)
       GAS_PHASE_OUTPUT_RES = DELTA/(ETA+EPS)
+   CASE(87)  ! MOLECULAR VISCOSITY
+      GAS_PHASE_OUTPUT_RES = MU_DNS(II,JJ,KK)
 
    CASE(90)  ! MASS FRACTION
       GAS_PHASE_OUTPUT_RES = Y_SPECIES/(1._EB-Y_H2O)
@@ -5882,14 +6364,19 @@ IND_SELECT: SELECT CASE(IND)
    CASE(139) ! H PRIME
       GAS_PHASE_OUTPUT_RES = H_PRIME(II,JJ,KK)
 
-   CASE(140) ! F_X
+   CASE(140) ! FVX_B
       GAS_PHASE_OUTPUT_RES = FVX_B(II,JJ,KK)
-   CASE(141) ! F_Y
+   CASE(141) ! FVY_B
       GAS_PHASE_OUTPUT_RES = FVY_B(II,JJ,KK)
-   CASE(142) ! F_Z
+   CASE(142) ! FVZ_B
       GAS_PHASE_OUTPUT_RES = FVZ_B(II,JJ,KK)
-   CASE(143) ! BAROCLINIC LIMITER
-      GAS_PHASE_OUTPUT_RES = BLIM(II,JJ,KK)
+
+   CASE(143) ! COMBUSTION EFFICIENCY
+      IF (Q(II,JJ,KK)>TWO_EPSILON_EB) THEN
+         GAS_PHASE_OUTPUT_RES = MIN(DT/MIX_TIME(II,JJ,KK),1._EB)
+      ELSE
+         GAS_PHASE_OUTPUT_RES = 0._EB
+      ENDIF
 
    CASE(154:155) ! TRANSMISSION, PATH OBSCURATION
       EXT_COEF   = 0._EB
@@ -5986,7 +6473,7 @@ IND_SELECT: SELECT CASE(IND)
       DV%Y_C = DV%Y_C + DT*(Y_E_LAG - DV%Y_C)/DT_C
       GAS_PHASE_OUTPUT_RES = (1._EB-EXP(-MASS_EXT_COEF*RHO(I,J,K)*DV%Y_C))*100._EB  ! Obscuration
 
-   CASE(159) ! CONTROL
+   CASE(159) ! CONTROL VALUE
       GAS_PHASE_OUTPUT_RES = CONTROL(DV%CTRL_INDEX)%INSTANT_VALUE
 
    CASE(160) ! CONTROL
@@ -6161,43 +6648,6 @@ IND_SELECT: SELECT CASE(IND)
    CASE(185) ! NUMBER OF PARTICLES
       GAS_PHASE_OUTPUT_RES = NLP
 
-   CASE(186:187) ! EQUIBLIBRIUM
-      Y_INDEX = SPECIES_MIXTURE(Z_INDEX)%SINGLE_SPEC_INDEX
-      ZZ_GET = ZZ(II,JJ,KK,:)
-      P_RATIO = P_STP/PBAR(0,PRESSURE_ZONE(II,JJ,KK))
-      M_G = RHO(II,JJ,KK)/(RDX(II)*RRN(II)*RDY(JJ)*RDZ(KK))
-      ITMP = INT(TMP(II,JJ,KK))
-      CALL GET_AVERAGE_SPECIFIC_HEAT(ZZ_GET,CP,REAL(ITMP,EB))
-      CALL GET_AVERAGE_SPECIFIC_HEAT(ZZ_GET,CP2,REAL(ITMP+1,EB))
-      CP = CP + (TMP(II,JJ,KK)-REAL(ITMP,EB))*(CP2-CP)
-      H_G = M_G * CP * TMP(II,JJ,KK)
-      M_L = 0._EB
-      H_L = 0._EB
-      Q_D = 0._EB
-      CALL GET_MASS_FRACTION(ZZ_GET,Y_INDEX,Y_EQ)
-      T_EQ = TMP(II,JJ,KK)
-
-      DO I=1,NLP
-         LP=>LAGRANGIAN_PARTICLE(I)
-         LPC=>LAGRANGIAN_PARTICLE_CLASS(LP%CLASS_INDEX)
-         IF (LPC%Z_INDEX /= Z_INDEX) CYCLE
-         IF (LP%ONE_D%IIG /= II .OR. LP%ONE_D%JJG /= JJ .OR. LP%ONE_D%KKG /= KK) CYCLE
-         M_D = FOTHPI * LP%ONE_D%RHO(1,1) * LP%ONE_D%X(1)**3 * LP%PWT
-         A_D = PI*LP%ONE_D%X(1)**2 * LP%PWT
-         M_L = M_L + M_D
-         TMP_D = LP%ONE_D%TMP(1)
-         CALL INTERPOLATE1D_UNIFORM(LBOUND(SPECIES(Y_INDEX)%C_P_L_BAR,1),SPECIES(Y_INDEX)%C_P_L_BAR,TMP_D,CP)
-         CALL INTERPOLATE1D_UNIFORM(LBOUND(SPECIES(Y_INDEX)%H_V,1),SPECIES(Y_INDEX)%H_V,TMP_D,H_V)
-         H_L = H_L + M_D * TMP_D * CP
-         IF (SUM(AVG_DROP_AREA(II,JJ,KK,:))>0._EB) Q_D_1 = (QR_W(II,JJ,KK)/SUM(AVG_DROP_AREA(II,JJ,KK,:)))* A_D * DT
-         Q_D = Q_D + MIN(Q_D_1,H_V*M_D)
-      ENDDO
-
-      IF (M_L > 0._EB) CALL GET_EQUILIBRIUM(Y_EQ,T_EQ,H_G,H_L,ZZ_GET,M_G,M_L,Y_INDEX,Z_INDEX,Q_D,P_RATIO,I)
-
-      IF (IND==186) GAS_PHASE_OUTPUT_RES = Y_EQ
-      IF (IND==187) GAS_PHASE_OUTPUT_RES = T_EQ - TMPM
-
    CASE(231) ! PDPA
       GAS_PHASE_OUTPUT_RES = 0._EB
       IF ( ((PY%PDPA_START<=T) .AND. (PY%PDPA_END>=T)) .OR. .NOT.PY%PDPA_INTEGRATE ) THEN
@@ -6331,23 +6781,35 @@ IND_SELECT: SELECT CASE(IND)
          GAS_PHASE_OUTPUT_RES = DT*UVW
       ENDIF
 
+   CASE(506)  ! SOLID CELL Q_S
+      GAS_PHASE_OUTPUT_RES = Q_DOT_PPP_S(II,JJ,KK) * 0.001_EB
+
+   CASE(507)  ! SUBGRID TEMPERATURE CORRECTION
+      GAS_PHASE_OUTPUT_RES = SGS_TMP_COR(II,JJ,KK)
+
+   CASE(508)  ! IDEAL GAS PRESSURE
+      ZZ_GET(1:N_TRACKED_SPECIES) = ZZ(II,JJ,KK,1:N_TRACKED_SPECIES)
+      CALL GET_SPECIFIC_GAS_CONSTANT(ZZ_GET,RCON)
+      GAS_PHASE_OUTPUT_RES = RHO(II,JJ,KK)*RCON*TMP(II,JJ,KK)
+
 END SELECT IND_SELECT
 
 END FUNCTION GAS_PHASE_OUTPUT
 
 
-REAL(EB) FUNCTION SOLID_PHASE_OUTPUT(NM,INDX,Y_INDEX,Z_INDEX,PART_INDEX,OPT_WALL_INDEX,OPT_LP_INDEX)
+REAL(EB) FUNCTION SOLID_PHASE_OUTPUT(NM,INDX,Y_INDEX,Z_INDEX,PART_INDEX,OPT_WALL_INDEX,OPT_LP_INDEX,OPT_CFACE_INDEX)
 
 ! Compute Solid Phase DEVICE Output Quantities
 
 USE PHYSICAL_FUNCTIONS, ONLY: SURFACE_DENSITY,GET_MASS_FRACTION,GET_SENSIBLE_ENTHALPY
 USE MATH_FUNCTIONS, ONLY: EVALUATE_RAMP
-INTEGER, INTENT(IN), OPTIONAL :: OPT_WALL_INDEX,OPT_LP_INDEX
+INTEGER, INTENT(IN), OPTIONAL :: OPT_WALL_INDEX,OPT_LP_INDEX,OPT_CFACE_INDEX
 INTEGER, INTENT(IN) :: INDX,Y_INDEX,Z_INDEX,PART_INDEX,NM
 REAL(EB) :: CONCORR,VOLSUM,MFT,ZZ_GET(1:N_TRACKED_SPECIES),Y_SPECIES,KSGS,DEPTH,UN,H_S
-REAL(EB) :: AAA,BBB,CCC,ALP,BET,GAM,MMM
-INTEGER :: II1,II2,IIG,JJG,KKG,NN,NR,IWX,SURF_INDEX,I,J,K,IW
+REAL(EB) :: AAA,BBB,CCC,ALP,BET,GAM,MMM,X0,X1,XC0,XC1,TMP_BAR,VOL,DVOL
+INTEGER :: II1,II2,IIG,JJG,KKG,NN,NR,IWX,SURF_INDEX,I,J,K,IW,II,JJ,KK,NWP,IOR,M_INDEX
 TYPE(WALL_TYPE), POINTER :: WC
+TYPE(CFACE_TYPE), POINTER :: CFA
 TYPE(LAGRANGIAN_PARTICLE_TYPE), POINTER :: LP
 TYPE(ONE_D_M_AND_E_XFER_TYPE), POINTER :: ONE_D
 
@@ -6372,6 +6834,12 @@ ELSEIF (PRESENT(OPT_LP_INDEX)) THEN
    ONE_D => LP%ONE_D
    SURF_INDEX = LAGRANGIAN_PARTICLE_CLASS(PART_INDEX)%SURF_INDEX
 
+ELSEIF (PRESENT(OPT_CFACE_INDEX)) THEN
+
+   CFA => CFACE(OPT_CFACE_INDEX)
+   SURF_INDEX = CFA%SURF_INDEX
+   ONE_D => CFA%ONE_D
+
 ENDIF
 
 ! Find the appropriate solid phase output quantity
@@ -6384,12 +6852,12 @@ SOLID_PHASE_SELECT: SELECT CASE(INDX)
    CASE( 3) ! NORMAL VELOCITY
       SOLID_PHASE_OUTPUT = ONE_D%UW
    CASE( 4) ! GAS TEMPERATURE
-      SOLID_PHASE_OUTPUT = TMP(ONE_D%IIG,ONE_D%JJG,ONE_D%KKG) - TMPM
+      SOLID_PHASE_OUTPUT = ONE_D%TMP_G - TMPM
    CASE( 5) ! WALL TEMPERATURE
          SOLID_PHASE_OUTPUT = ONE_D%TMP_F - TMPM
    CASE( 6) ! INSIDE WALL TEMPERATURE
       IF (ABS(SUM(ONE_D%LAYER_THICKNESS)-SUM(SURFACE(SURF_INDEX)%LAYER_THICKNESS))>TWO_EPSILON_EB) THEN
-         IF (DV%DEPTH > EPSILON_EB) THEN
+         IF (DV%DEPTH > TWO_EPSILON_EB) THEN
             DEPTH = DV%DEPTH
          ELSE
             DEPTH = MAX(0._EB,SUM(ONE_D%LAYER_THICKNESS)+DV%DEPTH)
@@ -6401,7 +6869,7 @@ SOLID_PHASE_SELECT: SELECT CASE(INDX)
             DO II2=II2,1,-1
                IF (DEPTH<=ONE_D%X(II2)) II1 = II2
             ENDDO
-            SOLID_PHASE_OUTPUT = ONE_D%TMP(II1)-TMPM
+            SOLID_PHASE_OUTPUT = ONE_D%TMP(II1) - TMPM
          ENDIF
       ELSE
          SOLID_PHASE_OUTPUT = ONE_D%TMP(DV%I_DEPTH) - TMPM
@@ -6424,7 +6892,7 @@ SOLID_PHASE_SELECT: SELECT CASE(INDX)
       IIG = ONE_D%IIG
       JJG = ONE_D%JJG
       KKG = ONE_D%KKG
-      SOLID_PHASE_OUTPUT = RHO(IIG,JJG,KKG)*(H(IIG,JJG,KKG)-KRES(IIG,JJG,KKG))/(0.5_EB*RHOA*PY%CHARACTERISTIC_VELOCITY**2)
+      SOLID_PHASE_OUTPUT = ONE_D%RHO_G*(H(IIG,JJG,KKG)-KRES(IIG,JJG,KKG))/(0.5_EB*RHOA*PY%CHARACTERISTIC_VELOCITY**2)
    CASE(12) ! BACK WALL TEMPERATURE
       SOLID_PHASE_OUTPUT = ONE_D%TMP_B - TMPM
    CASE(13) ! GAUGE HEAT FLUX
@@ -6448,6 +6916,8 @@ SOLID_PHASE_SELECT: SELECT CASE(INDX)
          SOLID_PHASE_OUTPUT = 0._EB
       ENDIF
       IF (INDX==16) SOLID_PHASE_OUTPUT = SOLID_PHASE_OUTPUT/SURFACE(SURF_INDEX)%SURFACE_DENSITY
+   CASE(17) ! RADIANCE
+      SOLID_PHASE_OUTPUT = SUM(ONE_D%IL(1:NUMBER_SPECTRAL_BANDS))*0.001_EB
    CASE(20) ! INCIDENT HEAT FLUX
       SOLID_PHASE_OUTPUT = ( ONE_D%QRADIN/(ONE_D%EMISSIVITY+1.0E-10_EB) )*0.001_EB
    CASE(21) ! HEAT TRANSFER COEFFICENT
@@ -6459,7 +6929,7 @@ SOLID_PHASE_SELECT: SELECT CASE(INDX)
       IF (ONE_D%HEAT_TRANS_COEF>0._EB) THEN
          AAA = ONE_D%EMISSIVITY*SIGMA
          BBB = ONE_D%HEAT_TRANS_COEF
-         CCC = -ONE_D%QRADIN - ONE_D%HEAT_TRANS_COEF*TMP(ONE_D%IIG,ONE_D%JJG,ONE_D%KKG)
+         CCC = -ONE_D%QRADIN - ONE_D%HEAT_TRANS_COEF*ONE_D%TMP_G
          ALP = (SR3*SQRT(27._EB*AAA**2*BBB**4-256._EB*AAA**3*CCC**3)+9._EB*AAA*BBB**2)**ONTH
          BET = FTTOT*CCC
          GAM = EIONTH*AAA
@@ -6481,14 +6951,25 @@ SOLID_PHASE_SELECT: SELECT CASE(INDX)
       ENDIF
 
    CASE(25,26) ! SURFACE DENSITY, NORMALIZED MASS
-      SOLID_PHASE_OUTPUT = SURFACE_DENSITY(NM,0,WALL_INDEX=IWX)
-      IF (INDX==26) SOLID_PHASE_OUTPUT = SOLID_PHASE_OUTPUT/SURFACE(SURF_INDEX)%SURFACE_DENSITY
+      SF => SURFACE(SURF_INDEX)
+      IF (DV%MATL_ID/='null') THEN
+         DO NN=1,SF%N_MATL
+            IF (DV%MATL_ID==SF%MATL_NAME(NN)) THEN
+               M_INDEX = NN
+               EXIT
+            ENDIF
+         ENDDO
+         SOLID_PHASE_OUTPUT = SURFACE_DENSITY(NM,0,WALL_INDEX=IWX,MATL_INDEX=M_INDEX)
+      ELSE
+         SOLID_PHASE_OUTPUT = SURFACE_DENSITY(NM,0,WALL_INDEX=IWX)
+      ENDIF
+      IF (INDX==26) SOLID_PHASE_OUTPUT = SOLID_PHASE_OUTPUT/SF%SURFACE_DENSITY
 
    CASE(27) ! SOLID DENSITY
       SF => SURFACE(SURF_INDEX)
       II1 = DV%I_DEPTH
-      IF (SF%PYROLYSIS_MODEL==PYROLYSIS_MATERIAL) THEN
-         IF (DV%DEPTH > EPSILON_EB) THEN
+      IF (SF%PYROLYSIS_MODEL==PYROLYSIS_PREDICTED) THEN
+         IF (DV%DEPTH > TWO_EPSILON_EB) THEN
             DEPTH = DV%DEPTH
          ELSE
             DEPTH = MAX(0._EB,SUM(ONE_D%LAYER_THICKNESS)+DV%DEPTH)
@@ -6533,8 +7014,8 @@ SOLID_PHASE_SELECT: SELECT CASE(INDX)
    CASE(33) ! SOLID SPECIFIC HEAT
       SF => SURFACE(SURF_INDEX)
       II1 = DV%I_DEPTH
-      IF (SF%PYROLYSIS_MODEL==PYROLYSIS_MATERIAL) THEN
-         IF (DV%DEPTH > EPSILON_EB) THEN
+      IF (SF%PYROLYSIS_MODEL==PYROLYSIS_PREDICTED) THEN
+         IF (DV%DEPTH > TWO_EPSILON_EB) THEN
             DEPTH = DV%DEPTH
          ELSE
             DEPTH = MAX(0._EB,SUM(ONE_D%LAYER_THICKNESS)+DV%DEPTH)
@@ -6566,8 +7047,8 @@ SOLID_PHASE_SELECT: SELECT CASE(INDX)
    CASE(34) ! SOLID CONDUCTIVITY
       SF => SURFACE(SURF_INDEX)
       II1 = DV%I_DEPTH
-      IF (SF%PYROLYSIS_MODEL==PYROLYSIS_MATERIAL) THEN
-         IF (DV%DEPTH > EPSILON_EB) THEN
+      IF (SF%PYROLYSIS_MODEL==PYROLYSIS_PREDICTED) THEN
+         IF (DV%DEPTH > TWO_EPSILON_EB) THEN
             DEPTH = DV%DEPTH
          ELSE
             DEPTH = MAX(0._EB,SUM(ONE_D%LAYER_THICKNESS)+DV%DEPTH)
@@ -6596,7 +7077,7 @@ SOLID_PHASE_SELECT: SELECT CASE(INDX)
       ENDDO MATERIAL_LOOP_K
       SOLID_PHASE_OUTPUT = SOLID_PHASE_OUTPUT / VOLSUM
 
-   CASE(35) ! YPLUS (distance from the wall expressed in nondimensional viscous units)
+   CASE(35) ! VISCOUS WALL UNITS (distance from the wall expressed in nondimensional viscous units)
       SOLID_PHASE_OUTPUT = WC%Y_PLUS
 
    CASE(36) ! FRICTION VELOCITY
@@ -6606,10 +7087,7 @@ SOLID_PHASE_SELECT: SELECT CASE(INDX)
       SOLID_PHASE_OUTPUT = WC%VEL_ERR_NEW
 
    CASE(38) ! WALL VISCOSITY
-      IIG = ONE_D%IIG
-      JJG = ONE_D%JJG
-      KKG = ONE_D%KKG
-      SOLID_PHASE_OUTPUT = MU(IIG,JJG,KKG)
+      SOLID_PHASE_OUTPUT = ONE_D%MU_G
 
    CASE(39) ! DEPOSITION VELOCITY
       SOLID_PHASE_OUTPUT = WC%V_DEP
@@ -6618,8 +7096,8 @@ SOLID_PHASE_SELECT: SELECT CASE(INDX)
       IIG = ONE_D%IIG
       JJG = ONE_D%JJG
       KKG = ONE_D%KKG
-      KSGS = (MU(IIG,JJG,KKG)*WC%RDN/(RHO(IIG,JJG,KKG)*C_DEARDORFF))**2
-      SOLID_PHASE_OUTPUT = RHO(IIG,JJG,KKG)*(H(IIG,JJG,KKG)-(KRES(IIG,JJG,KKG)+KSGS))/(0.5_EB*RHOA*PY%CHARACTERISTIC_VELOCITY**2)
+      KSGS = (ONE_D%MU_G*ONE_D%RDN/(ONE_D%RHO_G*C_DEARDORFF))**2
+      SOLID_PHASE_OUTPUT = ONE_D%RHO_G*(H(IIG,JJG,KKG)-(KRES(IIG,JJG,KKG)+KSGS))/(0.5_EB*RHOA*PY%CHARACTERISTIC_VELOCITY**2)
 
    CASE(41) ! WALL CELL COLOR (output VENT index for WC color)
       SOLID_PHASE_OUTPUT = REAL(WC%VENT_INDEX,EB)
@@ -6656,6 +7134,26 @@ SOLID_PHASE_SELECT: SELECT CASE(INDX)
       SF => SURFACE(SURF_INDEX)
       SOLID_PHASE_OUTPUT = REAL(SF%THERMAL_BC_INDEX,EB)
 
+   CASE(47) ! INSIDE WALL DEPTH (for use with INSIDE WALL TEMPERATURE to obtain exact TMP location)
+      IF (ABS(SUM(ONE_D%LAYER_THICKNESS)-SUM(SURFACE(SURF_INDEX)%LAYER_THICKNESS))>TWO_EPSILON_EB) THEN
+         IF (DV%DEPTH > TWO_EPSILON_EB) THEN
+            DEPTH = DV%DEPTH
+         ELSE
+            DEPTH = MAX(0._EB,SUM(ONE_D%LAYER_THICKNESS)+DV%DEPTH)
+         ENDIF
+         II2 = SUM(ONE_D%N_LAYER_CELLS)
+         IF (DEPTH>SUM(ONE_D%LAYER_THICKNESS)) THEN
+            SOLID_PHASE_OUTPUT = DEPTH
+         ELSE
+            DO II2=II2,1,-1
+               IF (DEPTH<=ONE_D%X(II2)) II1 = II2
+            ENDDO
+            SOLID_PHASE_OUTPUT = 0.5_EB*( ONE_D%X(II1-1) + ONE_D%X(II1) )
+         ENDIF
+      ELSE
+         SOLID_PHASE_OUTPUT = 0.5_EB*( ONE_D%X(DV%I_DEPTH-1) + ONE_D%X(DV%I_DEPTH) )
+      ENDIF
+
    CASE(50:58) ! VOLUME FLOW WALL, MASS FLOW WALL, HEAT FLOW WALL
       SOLID_PHASE_OUTPUT = 0._EB
       DV_K_LOOP: DO K=DV%K1,DV%K2
@@ -6688,39 +7186,92 @@ SOLID_PHASE_SELECT: SELECT CASE(INDX)
                      SOLID_PHASE_OUTPUT = SOLID_PHASE_OUTPUT + UN*WC%AW
                   CASE(53,54,55) ! MASS FLOW WALL (+,-)
                      IF (Z_INDEX > 0) THEN
-                        Y_SPECIES = WC%ZZ_F(Z_INDEX)
+                        Y_SPECIES = WC%ONE_D%ZZ_F(Z_INDEX)
                      ELSEIF (Y_INDEX > 0) THEN
-                        ZZ_GET(1:N_TRACKED_SPECIES) = WC%ZZ_F(1:N_TRACKED_SPECIES)
+                        ZZ_GET(1:N_TRACKED_SPECIES) = WC%ONE_D%ZZ_F(1:N_TRACKED_SPECIES)
                         CALL GET_MASS_FRACTION(ZZ_GET,Y_INDEX,Y_SPECIES)
                      ELSE
                         Y_SPECIES = 1._EB
                      ENDIF
-                     SOLID_PHASE_OUTPUT = SOLID_PHASE_OUTPUT + Y_SPECIES*WC%RHO_F*UN*WC%AW
+                     SOLID_PHASE_OUTPUT = SOLID_PHASE_OUTPUT + Y_SPECIES*WC%ONE_D%RHO_F*UN*WC%AW
                   CASE(56,57,58) ! HEAT FLOW WALL (+,-)
-                     ZZ_GET(1:N_TRACKED_SPECIES) = WC%ZZ_F(1:N_TRACKED_SPECIES)
+                     ZZ_GET(1:N_TRACKED_SPECIES) = WC%ONE_D%ZZ_F(1:N_TRACKED_SPECIES)
                      CALL GET_SENSIBLE_ENTHALPY(ZZ_GET,H_S,WC%ONE_D%TMP_F)
-                     SOLID_PHASE_OUTPUT = SOLID_PHASE_OUTPUT + WC%RHO_F*H_S*UN*WC%AW*0.001_EB
+                     SOLID_PHASE_OUTPUT = SOLID_PHASE_OUTPUT + WC%ONE_D%RHO_F*H_S*UN*WC%AW*0.001_EB
                END SELECT
             ENDDO DV_I_LOOP
          ENDDO DV_J_LOOP
       ENDDO DV_K_LOOP
 
    CASE(60) ! MASS FLUX WALL CELL
-      SOLID_PHASE_OUTPUT = -WC%RHO_F*ONE_D%UW
+      SOLID_PHASE_OUTPUT = -WC%ONE_D%RHO_F*ONE_D%UW
 
    CASE(61) ! GAS DENSITY
-      IIG = ONE_D%IIG
-      JJG = ONE_D%JJG
-      KKG = ONE_D%KKG
       IF (Z_INDEX > 0) THEN
-         Y_SPECIES = ZZ(IIG,JJG,KKG,Z_INDEX)
+         Y_SPECIES = ONE_D%ZZ_G(Z_INDEX)
       ELSEIF (Y_INDEX > 0) THEN
-         ZZ_GET(1:N_TRACKED_SPECIES) = ZZ(IIG,JJG,KKG,1:N_TRACKED_SPECIES)
+         ZZ_GET(1:N_TRACKED_SPECIES) = ONE_D%ZZ_G(1:N_TRACKED_SPECIES)
          CALL GET_MASS_FRACTION(ZZ_GET,Y_INDEX,Y_SPECIES)
       ELSE
          Y_SPECIES = 1._EB
       ENDIF
-     SOLID_PHASE_OUTPUT = RHO(IIG,JJG,KKG)*Y_SPECIES
+      SOLID_PHASE_OUTPUT = ONE_D%RHO_G*Y_SPECIES
+
+   CASE(62) ! SOLID CELL TEMPERATURE
+
+      !              X(II-1)      X(II)      X(IIG-1)
+      !                XC1         XC0        //|
+      !     |           |    II     |         //| <= 3D CELL INDEX, VOL=XC1-XC0
+      !     |     o     |     o     |     o   //| <= WALL CELL (WC)
+      !     |.................................//| <= ONE_D%X, dx
+      !
+      !     TMP_BAR = 1/VOL * INT_XC0^XC1 ONE_D%TMP * dx
+
+      II  = DV%I
+      JJ  = DV%J
+      KK  = DV%K
+      IIG = ONE_D%IIG
+      JJG = ONE_D%JJG
+      KKG = ONE_D%KKG
+      IOR = ONE_D%IOR
+      NWP = SUM(ONE_D%N_LAYER_CELLS)
+
+      SELECT CASE(IOR)
+         CASE (1)
+            XC0 = X(IIG-1) - X(II)
+            XC1 = X(IIG-1) - X(II-1)
+         CASE (-1)
+            XC0 = X(II-1)  - X(IIG)
+            XC1 = X(II)    - X(IIG)
+         CASE (2)
+            XC0 = Y(JJG-1) - Y(JJ)
+            XC1 = Y(JJG-1) - Y(JJ-1)
+         CASE (-2)
+            XC0 = Y(JJ-1)  - Y(JJG)
+            XC1 = Y(JJ)    - Y(JJG)
+         CASE (3)
+            XC0 = Z(KKG-1) - Z(KK)
+            XC1 = Z(KKG-1) - Z(KK-1)
+         CASE (-3)
+            XC0 = Z(KK-1)  - Z(KKG)
+            XC1 = Z(KK)    - Z(KKG)
+      END SELECT
+
+      TMP_BAR = 0._EB
+      VOL = 0._EB
+      DO I=1,NWP
+         X0 = ONE_D%X(I-1); IF (X0>XC1) EXIT
+         X1 = ONE_D%X(I)  ; IF (X1<XC0) CYCLE
+         DVOL = MIN(X1,XC1) - MAX(X0,XC0)
+         TMP_BAR = TMP_BAR + ONE_D%TMP(I) * DVOL
+         VOL = VOL + DVOL
+      ENDDO
+      IF (VOL>TWO_EPSILON_EB) TMP_BAR = TMP_BAR/VOL
+
+      SOLID_PHASE_OUTPUT = TMP_BAR - TMPM
+
+   CASE(63) ! MASS FLUX WALL CELL
+      SOLID_PHASE_OUTPUT = WC%Z_STAR
 
 END SELECT SOLID_PHASE_SELECT
 
@@ -6860,33 +7411,6 @@ LP => LAGRANGIAN_PARTICLE(LP_INDEX)
          END SELECT
 
 END FUNCTION PARTICLE_OUTPUT
-
-
-REAL(EB) FUNCTION GEOM_OUTPUT(IND,FACE_INDEX)
-
-! This routine is similar to SOLID_PHASE_OUTPUT, but for unstructured GEOM
-
-INTEGER, INTENT(IN) :: IND,FACE_INDEX
-TYPE(FACET_TYPE), POINTER :: FC=>NULL()
-
-FC=>FACET(FACE_INDEX)
-
-SELECT CASE(IND)
-   CASE DEFAULT
-      GEOM_OUTPUT = 0._EB
-   CASE(1) ! 'RADIATIVE HEAT FLUX'
-      GEOM_OUTPUT = (FC%QRADIN-FC%QRADOUT)*0.001_EB
-   CASE(2) ! 'CONVECTIVE HEAT FLUX'
-      GEOM_OUTPUT = FC%QCONF
-   CASE(3) ! 'NORMAL VELOCITY'
-      GEOM_OUTPUT = 0._EB
-   CASE(4) ! 'GAS TEMPERATURE'
-      GEOM_OUTPUT = FC%TMP_G-TMPM
-   CASE(5) ! 'WALL TEMPERATURE'
-      GEOM_OUTPUT = FC%TMP_F-TMPM
-END SELECT
-
-END FUNCTION GEOM_OUTPUT
 
 
 REAL(EB) FUNCTION TENSOR_OUTPUT(II,JJ,KK,IND,IOR,NM)
@@ -7132,19 +7656,18 @@ IF (N_PDPA_HISTOGRAM>0) THEN
    CLOSE(LU_HISTOGRAM)
 ENDIF
 
-! Miscellaneous adjustments
+! Compute the time-averaged point device values
 
 NN = 0
 DO N=1,N_DEVC
    DV => DEVICE(N)
-   IF (DV%QUANTITY=='CONTROL VALUE' .AND. .NOT.DV%TIME_AVERAGED) DV%VALUE = CONTROL(DV%CTRL_INDEX)%INSTANT_VALUE
    IF (DV%LINE==0 .AND. DV%OUTPUT) THEN
       NN = NN + 1
       TIME_DEVC_VALUE(NN) = DV%VALUE/DV%TIME_INTERVAL
    ENDIF
 ENDDO
 
-! Dump time device file
+! Write the point device values into CHID_devc.csv
 
 DO I=1,N_DEVC_FILES
    N_OUT = MIN(DEVC_COLUMN_LIMIT, N_DEVC_TIME - DEVC_COLUMN_LIMIT * (I - 1))
@@ -7152,7 +7675,7 @@ DO I=1,N_DEVC_FILES
    WRITE(LU_DEVC(I),TCFORM) DEVC_TIME,(TIME_DEVC_VALUE(N),N=DEVC_COLUMN_LIMIT*(I-1)+1, MIN(N_DEVC_TIME,DEVC_COLUMN_LIMIT*I))
 ENDDO
 
-! Dump line device file
+! Write the line device values into CHID_line.csv
 
 IF (N_DEVC_LINE>0) THEN
 
@@ -7238,7 +7761,7 @@ REAL(FB) :: STIME
 INTEGER :: WRITE_VALUE(N_CTRL)
 INTEGER :: I,N,N_OUT
 
-STIME = T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR
+STIME = REAL(T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR,FB)
 WHERE (CONTROL%CURRENT_STATE)
    WRITE_VALUE=1
 ELSEWHERE
@@ -7268,7 +7791,7 @@ TYPE (PROFILE_TYPE), POINTER :: PF=>NULL()
 
 IF (EVACUATION_ONLY(NM)) RETURN
 
-STIME = T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR
+STIME = REAL(T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR,FB)
 PROF_LOOP: DO N=1,N_PROF
    PF  => PROFILE(N)
    IF (NM/=PF%MESH) CYCLE PROF_LOOP
@@ -7278,7 +7801,7 @@ PROF_LOOP: DO N=1,N_PROF
    IF (WC%BOUNDARY_TYPE==NULL_BOUNDARY) CYCLE PROF_LOOP
    SURF_INDEX =  M%WALL(IW)%SURF_INDEX
    SF  => SURFACE(SURF_INDEX)
-   IF (SF%PYROLYSIS_MODEL==PYROLYSIS_MATERIAL) THEN
+   IF (SF%PYROLYSIS_MODEL==PYROLYSIS_PREDICTED) THEN
       NWP = SUM(WC%ONE_D%N_LAYER_CELLS)
       IF (NWP==0) CYCLE PROF_LOOP
       X_S_NEW(0:NWP) = WC%ONE_D%X(0:NWP)
@@ -7409,17 +7932,17 @@ WALL_LOOP: DO IW=1,N_EXTERNAL_WALL_CELLS+N_INTERNAL_WALL_CELLS
          U_N =  W(IIG,JJG,KKG)
    END SELECT
 
-   ZZ_GET(1:N_TRACKED_SPECIES) = WC%ZZ_F(1:N_TRACKED_SPECIES)
+   ZZ_GET(1:N_TRACKED_SPECIES) = WC%ONE_D%ZZ_F(1:N_TRACKED_SPECIES)
    CALL GET_SENSIBLE_ENTHALPY(ZZ_GET,H_S,WC%ONE_D%TMP_F)
    CALL GET_SPECIFIC_HEAT(ZZ_GET,CP,WC%ONE_D%TMP_F)
    H_S_J_ALPHA = 0._EB
    IF (N_TRACKED_SPECIES > 1) THEN
       DO N=1,N_TRACKED_SPECIES
          CALL GET_SENSIBLE_ENTHALPY_Z(N,WC%ONE_D%TMP_F,H_S_ALPHA)
-         H_S_J_ALPHA = H_S_J_ALPHA + 2._EB*H_S_ALPHA*WC%RHODW(N)*(ZZ(IIG,JJG,KKG,N)-WC%ZZ_F(N))*WC%RDN
+         H_S_J_ALPHA = H_S_J_ALPHA + 2._EB*H_S_ALPHA*WC%ONE_D%RHO_D_F(N)*(ZZ(IIG,JJG,KKG,N)-WC%ONE_D%ZZ_F(N))*WC%ONE_D%RDN
       ENDDO
    ENDIF
-   Q_DOT(3,NM) = Q_DOT(3,NM) - U_N*WC%RHO_F*H_S*WC%AW
+   Q_DOT(3,NM) = Q_DOT(3,NM) - U_N*WC%ONE_D%RHO_F*H_S*WC%AW
    Q_DOT(4,NM) = Q_DOT(4,NM) - WC%ONE_D%QCONF*WC%AW
    Q_DOT(5,NM) = Q_DOT(5,NM) - H_S_J_ALPHA*WC%AW
 ENDDO WALL_LOOP
@@ -7458,7 +7981,7 @@ INTEGER :: NM,I,N_ZONE_TMP
 REAL(EB) :: Q_DOT_TOTAL(N_Q_DOT),M_DOT_TOTAL(2)
 REAL(EB), DIMENSION(:), ALLOCATABLE ::  P_ZONE_P
 
-STIME = T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR
+STIME = REAL(T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR,FB)
 Q_DOT_TOTAL = 0._EB
 M_DOT_TOTAL = 0._EB
 
@@ -7539,7 +8062,7 @@ INTEGER :: NM,N
 
 IF (.NOT.MASS_FILE) RETURN
 
-STIME = T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR
+STIME = REAL(T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR,FB)
 MINT_TOTAL(:) = 0._EB
 
 DO NM=1,NMESHES
@@ -7558,14 +8081,14 @@ SUBROUTINE DUMP_BNDF(T,NM)
 
 REAL(EB), INTENT(IN) :: T
 REAL(FB) :: STIME
-INTEGER :: ISUM,NF,IND,I,J,K,IC,IW,L,L1,L2,N,N1,N2,IP,NC
+INTEGER :: ISUM,NF,IND,I,J,K,IC,IW,L,L1,L2,N,N1,N2,IP,NC,I1,I2,J1,J2,K1,K2
 INTEGER, INTENT(IN) :: NM
 TYPE(PATCH_TYPE), POINTER :: PA
 
 IF (MESHES(NM)%N_PATCH==0) RETURN
 IF (EVACUATION_ONLY(NM))  RETURN
 
-STIME = T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR
+STIME = REAL(T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR,FB)
 
 CALL POINT_TO_MESH(NM)
 
@@ -7581,7 +8104,7 @@ FILE_LOOP: DO NF=1,N_BNDF
       PA => PATCH(IP)
 
       PP  = 0._EB
-      PPN = 0._EB
+      PPN = 0._FB
       IBK = 0
 
       ! Adjust PATCH indices depending on orientation
@@ -7604,7 +8127,7 @@ FILE_LOOP: DO NF=1,N_BNDF
                   CASE(2) ; L=I ; N=K
                   CASE(3) ; L=I ; N=J
                END SELECT
-               PP(L,N) = SOLID_PHASE_OUTPUT(NM,IND,BF%Y_INDEX,BF%Z_INDEX,BF%PART_INDEX,OPT_WALL_INDEX=IW)
+               PP(L,N) = REAL(SOLID_PHASE_OUTPUT(NM,IND,BF%Y_INDEX,BF%Z_INDEX,BF%PART_INDEX,OPT_WALL_INDEX=IW),FB)
                IF (WALL(IW)%BOUNDARY_TYPE/=NULL_BOUNDARY .AND. .NOT.SOLID(IC)) IBK(L,N) = 1
             ENDDO
          ENDDO
@@ -7616,7 +8139,8 @@ FILE_LOOP: DO NF=1,N_BNDF
          DO N=N1,N2
             DO L=L1,L2
                NC = NC + 1
-               BNDF_TIME_INTEGRAL(NC,BF%TIME_INTEGRAL_INDEX) = BNDF_TIME_INTEGRAL(NC,BF%TIME_INTEGRAL_INDEX) + PP(L,N)*DT_BNDF
+               BNDF_TIME_INTEGRAL(NC,BF%TIME_INTEGRAL_INDEX) = BNDF_TIME_INTEGRAL(NC,BF%TIME_INTEGRAL_INDEX) + &
+                                                               PP(L,N)*REAL(DT_BNDF,FB)
                PP(L,N) = BNDF_TIME_INTEGRAL(NC,BF%TIME_INTEGRAL_INDEX)
             ENDDO
          ENDDO
@@ -7633,9 +8157,9 @@ FILE_LOOP: DO NF=1,N_BNDF
                IF (IBK(L+1,N+1)==1) PPN(L,N) = PPN(L,N) + PP(L+1,N+1)
                ISUM = IBK(L,N)+IBK(L,N+1)+IBK(L+1,N)+IBK(L+1,N+1)
                IF (ISUM>0) THEN
-                  PPN(L,N) = PPN(L,N)/REAL(ISUM,EB)
+                  PPN(L,N) = PPN(L,N)/REAL(ISUM,FB)
                ELSE
-                  PPN(L,N) = SOLID_PHASE_OUTPUT(NM,IND,BF%Y_INDEX,BF%Z_INDEX,BF%PART_INDEX,OPT_WALL_INDEX=0)
+                  PPN(L,N) = REAL(SOLID_PHASE_OUTPUT(NM,IND,BF%Y_INDEX,BF%Z_INDEX,BF%PART_INDEX,OPT_WALL_INDEX=0),FB)
                ENDIF
             ENDDO
          ENDDO
@@ -7645,6 +8169,29 @@ FILE_LOOP: DO NF=1,N_BNDF
       ENDIF
 
    ENDDO PATCH_LOOP
+
+   IF (CC_IBM) THEN
+      I1=0; I2=-1; J1=0; J2=-1; K1=0; K2=-1; ! Just dummy numbers, not needed for INBOUND_FACES
+      ! write geometry for slice file
+      IF (ABS(STIME-T_BEGIN)<TWO_EPSILON_EB) THEN
+         ! geometry and data file at first time step
+         OPEN(LU_BNDF_GEOM(NF,NM),FILE=FN_BNDF_GEOM(NF,NM),FORM='UNFORMATTED',STATUS='REPLACE')
+         CALL DUMP_SLICE_GEOM(LU_BNDF_GEOM(NF,NM),"INBOUND_FACES",1,STIME,I1,I2,J1,J2,K1,K2)
+         CLOSE(LU_BNDF_GEOM(NF,NM))
+
+         OPEN(LU_BNDG(NF,NM),FILE=FN_BNDG(NF,NM),FORM='UNFORMATTED',STATUS='REPLACE')
+         CALL DUMP_SLICE_GEOM_DATA(NM,LU_BNDG(NF,NM),"INBOUND_FACES",1,STIME,I1,I2,J1,J2,K1,K2, &
+                                   IND,BF%Y_INDEX,BF%Z_INDEX)
+         CLOSE(LU_BNDG(NF,NM))
+      ELSE
+         ! data file at subsequent time steps
+         OPEN(LU_BNDG(NF,NM),FILE=FN_BNDG(NF,NM),FORM='UNFORMATTED',STATUS='OLD',POSITION='APPEND')
+         CALL DUMP_SLICE_GEOM_DATA(NM,LU_BNDG(NF,NM),"INBOUND_FACES",0,STIME,I1,I2,J1,J2,K1,K2, &
+                                   IND,BF%Y_INDEX,BF%Z_INDEX)
+         CLOSE(LU_BNDG(NF,NM))
+      ENDIF
+   ENDIF
+
 ENDDO FILE_LOOP
 
 END SUBROUTINE DUMP_BNDF
@@ -7660,7 +8207,7 @@ REAL(FB) :: STIME
 CHARACTER(50) :: FN
 INTEGER :: N
 
-STIME = T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR
+STIME = REAL(T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR,FB)
 
 BNDC_LOOP: DO N=1,1 ! placeholder for multiple boundary files
 
@@ -7704,17 +8251,17 @@ SUBROUTINE DUMP_BNDE(T)
 ! Dump boundary quantities into CHID_nn.be file
 REAL(EB), INTENT(IN) :: T
 REAL(FB) :: STIME
-INTEGER :: N,I
+INTEGER :: N
 
-STIME = T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR
+STIME = REAL(T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR,FB)
 
 ELOOP: DO N=1,N_BNDE
 
    BE => BOUNDARY_ELEMENT_FILE(N)
 
-   WRITE(LU_BNDE(N)) STIME
-   WRITE(LU_BNDE(N)) 0,0,0,N_FACE
-   IF (N_FACE>0) WRITE(LU_BNDE(N)) (REAL(GEOM_OUTPUT(ABS(BE%INDEX),I),FB),I=1,N_FACE)
+   ! WRITE(LU_BNDE(N)) STIME
+   ! WRITE(LU_BNDE(N)) 0,0,0,N_FACE
+   ! IF (N_FACE>0) WRITE(LU_BNDE(N)) (REAL(GEOM_OUTPUT(ABS(BE%INDEX),I),FB),I=1,N_FACE)
 
 ENDDO ELOOP
 
@@ -7768,7 +8315,7 @@ IF (MESHES(NM)%N_PATCH==0) RETURN
 
 IF (EVACUATION_ONLY(NM)) RETURN
 
-STIME = T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR
+STIME = REAL(T_BEGIN + (T-T_BEGIN)*TIME_SHRINK_FACTOR,FB)
 
 CALL POINT_TO_MESH(NM)
 
@@ -7792,7 +8339,7 @@ FLOOP: DO NF=1,N_BNDF
          DO I=1,IBAR
             IC = CELL_INDEX(I,J,KG)
             IW = WALL_INDEX(IC,-IOR)
-            PP(I,J) = SOLID_PHASE_OUTPUT(NM,IND,BF%Y_INDEX,BF%Z_INDEX,BF%PART_INDEX,OPT_WALL_INDEX=IW)
+            PP(I,J) = REAL(SOLID_PHASE_OUTPUT(NM,IND,BF%Y_INDEX,BF%Z_INDEX,BF%PART_INDEX,OPT_WALL_INDEX=IW),FB)
          ENDDO
       ENDDO
    ENDIF
@@ -7818,7 +8365,7 @@ FLOOP: DO NF=1,N_BNDF
             DO I=I1,I2
                IC = CELL_INDEX(I,J,K)
                IW = WALL_INDEX(IC,-IOR)
-               PP(I,J) = SOLID_PHASE_OUTPUT(NM,IND,BF%Y_INDEX,BF%Z_INDEX,BF%PART_INDEX,OPT_WALL_INDEX=IW)
+               PP(I,J) = REAL(SOLID_PHASE_OUTPUT(NM,IND,BF%Y_INDEX,BF%Z_INDEX,BF%PART_INDEX,OPT_WALL_INDEX=IW),FB)
             ENDDO
          ENDDO
       ENDIF
@@ -7964,7 +8511,7 @@ REAL(EB) :: TNOW
 TNOW = SECOND()
 
 IF (PARTICLE_FILE) THEN
-   INQUIRE(UNIT=LU_MASS,OPENED=OPN)
+   INQUIRE(UNIT=LU_PART(NM),OPENED=OPN)
    IF (OPN) FLUSH(LU_PART(NM))
 ENDIF
 
@@ -8010,7 +8557,7 @@ SUBROUTINE TIMINGS
 
 ! Print out detector activation times and total elapsed time into .out file.
 
-USE COMP_FUNCTIONS, ONLY: WALL_CLOCK_TIME
+USE COMP_FUNCTIONS, ONLY: SECOND
 INTEGER :: N
 LOGICAL :: WRITE_HEADER
 TYPE(CONTROL_TYPE), POINTER :: CF=>NULL()
@@ -8040,9 +8587,8 @@ ENDIF
 ! Printout elapsed wall clock time
 
 IF (ICYC>0) THEN
-   WALL_CLOCK_END = WALL_CLOCK_TIME()
-   WRITE(LU_OUTPUT,'(//A,F12.3)') ' Time Stepping Wall Clock Time (s): ',WALL_CLOCK_END-WALL_CLOCK_START_ITERATIONS
-   WRITE(LU_OUTPUT,'(  A,F12.3)') ' Total Elapsed Wall Clock Time (s): ',WALL_CLOCK_END-WALL_CLOCK_START
+   WRITE(LU_OUTPUT,'(//A,F12.3)') ' Time Stepping Wall Clock Time (s): ',SUM(T_USED(1:N_TIMERS))
+   WRITE(LU_OUTPUT,'(  A,F12.3)') ' Total Elapsed Wall Clock Time (s): ',SECOND()-WALL_CLOCK_START
 ENDIF
 
 END SUBROUTINE TIMINGS
@@ -8055,7 +8601,7 @@ SUBROUTINE GET_LAYER_HEIGHT(II,JJ,K_LO,K_HI,ZINT,TMPUP,TMPLOW)
 INTEGER, INTENT(IN) :: II,JJ,K_LO,K_HI
 INTEGER :: K
 REAL(EB) :: I_1,I_2,Z_HI,Z_LO
-REAL(FB), INTENT(OUT) :: TMPLOW,TMPUP,ZINT
+REAL(EB), INTENT(OUT) :: TMPLOW,TMPUP,ZINT
 
 Z_LO = Z(K_LO-1)
 Z_HI = Z(K_HI)

@@ -6,6 +6,9 @@ $QFDS -d Atmospheric_Effects lee_waves.fds
 $QFDS -d Atmospheric_Effects stack_effect.fds
 $QFDS -d Atmospheric_Effects lapse_rate.fds
 
+$QFDS -d Complex_Geometry sphere_helium_1mesh.fds
+$QFDS -p 3 -d Complex_Geometry sphere_helium_3meshes.fds
+
 $QFDS -d Controls activate_vents.fds
 $QFDS -d Controls control_test.fds
 $QFDS -d Controls control_test_2.fds
@@ -49,7 +52,8 @@ $QFDS -d Fires tmp_lower_limit_default.fds
 $QFDS -d Fires tmp_lower_limit_dt_p001.fds
 $QFDS -d Fires fire_const_gamma.fds
 
-$QFDS -d Flowfields divergence_test.fds
+$QFDS -d Flowfields divergence_test_1.fds
+$QFDS -d Flowfields divergence_test_2.fds
 $QFDS -d Flowfields cyl_test_1.fds
 $QFDS -d Flowfields cyl_test_2.fds
 $QFDS -d Flowfields cyl_test_3.fds
@@ -63,6 +67,7 @@ $QFDS -d Flowfields hole.fds
 $QFDS -d Flowfields no_hole.fds
 $QFDS -d Flowfields jet_fan.fds
 $QFDS -d Flowfields symmetry_test.fds
+$QFDS -d Flowfields symmetry_test_2.fds
 $QFDS -d Flowfields tangential_velocity.fds
 $QFDS -d Flowfields velocity_bc_test.fds
 $QFDS -d Flowfields blasius_16.fds
@@ -118,6 +123,9 @@ $QFDS -d Heat_Transfer ht3d_nz_80.fds
 $QFDS -d Heat_Transfer ht3d_nz_160.fds
 $QFDS -d Heat_Transfer ht3d_slab.fds
 $QFDS -d Heat_Transfer ht3d_ibeam.fds
+$QFDS -p 2 -d Heat_Transfer ht3d_2mesh_x.fds
+$QFDS -p 2 -d Heat_Transfer ht3d_2mesh_y.fds
+$QFDS -p 2 -d Heat_Transfer ht3d_2mesh_z.fds
 
 $QFDS -d HVAC ashrae7_fixed_flow.fds
 $QFDS -d HVAC ashrae7_quadratic.fds
@@ -265,6 +273,20 @@ $QFDS -d Radiation radiation_box__20__100.fds
 $QFDS -d Radiation radiation_box__20_2000.fds
 $QFDS -d Radiation radiation_box__20__300.fds
 $QFDS -d Radiation radiation_box__20___50.fds
+$QFDS -d Radiation radiation_gas_panel_10cm.fds
+$QFDS -d Radiation radiation_gas_panel_10cm_offset.fds
+$QFDS -d Radiation radiation_gas_panel_15cm.fds
+$QFDS -d Radiation radiation_gas_panel_15cm_offset.fds
+$QFDS -d Radiation radiation_gas_panel_25cm.fds
+$QFDS -d Radiation radiation_gas_panel_25cm_offset.fds
+$QFDS -d Radiation radiation_gas_panel_38cm.fds
+$QFDS -d Radiation radiation_gas_panel_38cm_offset.fds
+$QFDS -d Radiation radiation_gas_panel_46cm.fds
+$QFDS -d Radiation radiation_gas_panel_46cm_offset.fds
+$QFDS -d Radiation radiation_gas_panel_61cm.fds
+$QFDS -d Radiation radiation_gas_panel_61cm_offset.fds
+$QFDS -d Radiation radiation_gas_panel_76cm.fds
+$QFDS -d Radiation radiation_gas_panel_76cm_offset.fds
 $QFDS -d Radiation radiation_plane_layer_1_1.fds
 $QFDS -d Radiation radiation_plane_layer_1_2.fds
 $QFDS -d Radiation radiation_plane_layer_1_3.fds
@@ -384,6 +406,7 @@ $QFDS -d Sprinklers_and_Sprays water_evaporation_4.fds
 $QFDS -d Sprinklers_and_Sprays water_evaporation_5.fds
 $QFDS -d Sprinklers_and_Sprays water_evaporation_6.fds
 $QFDS -d Sprinklers_and_Sprays water_evaporation_7.fds
+$QFDS -d Sprinklers_and_Sprays water_evaporation_8.fds
 $QFDS -d Sprinklers_and_Sprays water_fuel_sprays.fds
 $QFDS -d Sprinklers_and_Sprays screen_drag_1.fds
 $QFDS -d Sprinklers_and_Sprays screen_drag_2.fds
@@ -443,6 +466,9 @@ $QFDS -d Scalar_Analytical_Solution saad_512_cfl_p25.fds
 $QFDS -d Scalar_Analytical_Solution saad_512_cfl_p125.fds
 $QFDS -d Scalar_Analytical_Solution saad_512_cfl_p0625.fds
 
+$QFDS -o 1 -d Thread_Check race_test_1.fds
+$QFDS -o 4 -d Thread_Check race_test_4.fds
+
 $QFDS -d Turbulence csmag0_32.fds
 $QFDS -d Turbulence csmag_32.fds
 $QFDS -d Turbulence csmag_64.fds
@@ -455,6 +481,8 @@ $QFDS -d Turbulence vreman_32.fds
 $QFDS -d Turbulence vreman_64.fds
 $QFDS -d Turbulence rng_32.fds
 $QFDS -d Turbulence rng_64.fds
+$QFDS -d Turbulence wale_32.fds
+$QFDS -d Turbulence wale_64.fds
 $QFDS -d Turbulence yplus_8.fds
 $QFDS -d Turbulence yplus_16.fds
 $QFDS -d Turbulence yplus_32.fds
@@ -470,6 +498,14 @@ $QFDS -d Turbulence sem_par_leddy_p2.fds
 $QFDS -d Turbulence sem_atm_leddy_p2.fds
 $QFDS -d Turbulence sem_ramp_leddy_p2.fds
 $QFDS -d Turbulence ramp_prof_u_z.fds
+
+$QFDS -d Vegetation radiation_gas-veg_consistency_gas.fds
+$QFDS -d Vegetation radiation_gas-veg_consistency_veg.fds
+$QFDS -d Vegetation vege_mass_conservation.fds
+$QFDS -d Vegetation vege_pressure-drop_cylinder_MPUV2pt0.fds
+$QFDS -d Vegetation vege_pressure-drop_cylinder_MPUV30pt0.fds
+$QFDS -d Vegetation vege_pressure-drop_sphere_MPUV2pt0.fds
+$QFDS -d Vegetation vege_pressure-drop_sphere_MPUV30pt0.fds
 
 $QFDS -d WUI dragon_5a.fds
 $QFDS -d WUI pine_needles.fds

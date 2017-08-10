@@ -69,13 +69,6 @@ end
 % Read in global plot options
 plot_style
 
-set(gcf,'DefaultLineLineWidth',Line_Width)
-WPos = get(gcf,'Position');
-set(gcf,'Position',[WPos(1) WPos(2) 640,420]);
-set(gca,'FontName',Font_Name)
-set(gca,'Units',Plot_Units)
-set(gca,'Position',[Plot_X,Plot_Y,Plot_Width,Plot_Height])
-
 % Read configuration file
 A = importdata(Dataplot_Inputs_File);
 H = textscan(A{1},'%q','delimiter',',');
@@ -166,6 +159,8 @@ for i=2:n_plots
             K_save = K;
             d2_Key_save = d2_Key;
         end
+        set(gca,'Units',Plot_Units)
+        set(gca,'Position',[Plot_X Plot_Y Plot_Width Plot_Height])
 
         define_drow_variables
 
@@ -186,7 +181,7 @@ for i=2:n_plots
            display(['Error: File ', d1_Filename ', does not exist. Skipping case.'])
            continue
         end
-        [H M] = dvcread(d1_Filename,d1_Col_Name_Row);
+        [H M] = dvcread(d1_Filename,d1_Col_Name_Row,d1_Data_Row);
         R1 = parsepipe(d1_Ind_Col_Name);
         S1 = parsepipe(d1_Dep_Col_Name);
         style = parsepipe(d1_Style);
@@ -194,8 +189,8 @@ for i=2:n_plots
         % Skips case upon any Matlab error
         try
             for j=1:length(S1)
-                d1_Ind_Col = find(strcmp(H,R1(min(j,length(R1)))));
-                d1_Dep_Col = find(strcmp(H,S1(j)));
+                d1_Ind_Col = find(strcmp(strtrim(H),strtrim(R1(min(j,length(R1))))));
+                d1_Dep_Col = find(strcmp(strtrim(H),strtrim(S1(j))));
                 Save_Measured_Quantity(i,j) = S1(j);
                 clear indices
                 % Clear flag for stat_x_y metric
@@ -273,6 +268,7 @@ for i=2:n_plots
                     elseif strcmp(Plot_Type,'semilogy')
                         K(j) = semilogy(X,Y,char(style(j))); hold on
                     end
+                    set(K(j),'linewidth',Line_Width)
                 end
             end
         catch
@@ -286,7 +282,7 @@ for i=2:n_plots
            display(['Error: File ', d2_Filename, ' does not exist. Skipping case.'])
            continue
         end
-        [H M] = dvcread(d2_Filename,d2_Col_Name_Row);
+        [H M] = dvcread(d2_Filename,d2_Col_Name_Row,d2_Data_Row);
         R2 = parsepipe(d2_Ind_Col_Name);
         S2 = parsepipe(d2_Dep_Col_Name);
         style = parsepipe(d2_Style);
@@ -302,9 +298,9 @@ for i=2:n_plots
                 % check for "+" operator on columns (see hrrpuv_reac for examples)
                 SP = parseplus(S2(j));
                 Save_Predicted_Quantity(i,j) = S2(j);
-                d2_Ind_Col = find(strcmp(H,R2(min(j,length(R2)))));
+                d2_Ind_Col = find(strcmp(strtrim(H),strtrim(R2(min(j,length(R2))))));
                 for jj=1:length(SP)
-                    d2_Dep_Col(jj) = find(strcmp(H,SP(jj)));
+                    d2_Dep_Col(jj) = find(strcmp(strtrim(H),strtrim(SP(jj))));
                 end
                 clear indices
 
@@ -392,6 +388,7 @@ for i=2:n_plots
                     elseif strcmp(Plot_Type,'semilogy')
                         K(length(S1)+j) = semilogy(X,Y,char(style(j)));
                     end
+                    set(K(length(S1)+j),'linewidth',Line_Width)
                 else
                     if strcmp(Plot_Type,'linear')
                         K(length(K_save)+j) = plot(X,Y,char(style(j)));
@@ -402,6 +399,7 @@ for i=2:n_plots
                     elseif strcmp(Plot_Type,'semilogy')
                         K(length(K_save)+j) = semilogy(X,Y,char(style(j)));
                     end
+                    set(K(length(K_save)+j),'linewidth',Line_Width)
                 end
 
             end
@@ -468,16 +466,16 @@ for i=2:n_plots
                     legend_handle = legend(K,[parsepipe(d1_Key),parsepipe(d2_Key_save),parsepipe(d2_Key)],'Location',Key_Position);
                     d2_Key = [d2_Key_save,'|',d2_Key];
                 end
-                % % The latest version of Matlab (R2015b) apparently get this correct, but I will
-                % % leave this commented code for a bit until we are sure this is working on blaze.
-                % if strcmp(Key_Position,'EastOutside')
-                %    pos = get(legend_handle,'position');
-                %    set(legend_handle,'position',[Paper_Width (Plot_Y+(Plot_Height-pos(4))/2) pos(3:4)])
-                % end
-                % if strcmp(Key_Position,'SouthEastOutside')
-                %    pos = get(legend_handle,'position');
-                %    set(legend_handle,'position',[Paper_Width Plot_Y pos(3:4)])
-                % end
+                if strcmp(Key_Position,'EastOutside')
+                   set(legend_handle,'Units',Paper_Units)
+                   pos = get(legend_handle,'position');
+                   set(legend_handle,'position',[Paper_Width pos(2:4)])
+                end
+                if strcmp(Key_Position,'SouthEastOutside')
+                   set(legend_handle,'Units',Paper_Units)
+                   pos = get(legend_handle,'position');
+                   set(legend_handle,'position',[Paper_Width pos(2:4)])
+                end
                 set(legend_handle,'Interpreter',Font_Interpreter);
                 set(legend_handle,'Fontsize',Key_Font_Size);
                 set(legend_handle,'Box','on');
@@ -506,10 +504,10 @@ for i=2:n_plots
             PDF_Paper_Width = Paper_Width_Factor*Paper_Width;
 
             set(gcf,'Visible',Figure_Visibility);
-            set(gcf,'PaperUnits',Paper_Units);
+            set(gcf,'Units',Paper_Units);
             set(gcf,'PaperSize',[PDF_Paper_Width Paper_Height]);
-            set(gcf,'PaperPosition',[0 0 PDF_Paper_Width Paper_Height]);
-            display(['Printing plot ',num2str(i),'...'])
+            set(gcf,'Position',[0 0 PDF_Paper_Width Paper_Height]);
+            display(['dataplot ',num2str(i),'...'])
             print(gcf,Image_File_Type,[Manuals_Dir,Plot_Filename])
         catch
             display(['Error: Problem with dataplot row ', num2str(i), ' (', Dataname,...

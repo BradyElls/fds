@@ -1,6 +1,6 @@
 % McDermott
 % 7-7-14
-% mccaffrey_plumes.m
+% mccaffrey_plume.m
 
 close all
 clear all
@@ -14,14 +14,16 @@ rho = 1.18;
 cp = 1;
 T0 = 273.15 + 20;
 
-DS = (Q/(rho*cp*T0*sqrt(g))).^(2/5); % m
+DS = (Q/(rho*cp*T0*sqrt(g))).^(2/5) % m
+
+repo = '/Volumes/rmcdermo/GitHub/FireModels_rmcdermo/fds/';
 
 %datadir = '../../Validation/McCaffrey_Plume/FDS_Output_Files/';
-datadir = '../../Validation/McCaffrey_Plume/Test2/';
-plotdir = '../../Manuals/FDS_Validation_Guide/SCRIPT_FIGURES/McCaffrey_Plume/';
+datadir = [repo,'Validation/McCaffrey_Plume/Current_Results/'];
+plotdir = [repo,'Manuals/FDS_Validation_Guide/SCRIPT_FIGURES/McCaffrey_Plume/'];
 
-chid = {'McCaffrey_14_kW_11','McCaffrey_22_kW_11','McCaffrey_33_kW_11','McCaffrey_45_kW_11','McCaffrey_57_kW_11'};
-%chid = {'McCaffrey_14_kW_21','McCaffrey_22_kW_21','McCaffrey_33_kW_21','McCaffrey_45_kW_21','McCaffrey_57_kW_21'};
+%chid = {'McCaffrey_14_kW_11','McCaffrey_22_kW_11','McCaffrey_33_kW_11','McCaffrey_45_kW_11','McCaffrey_57_kW_11'};
+chid = {'McCaffrey_14_kW_21','McCaffrey_22_kW_21','McCaffrey_33_kW_21','McCaffrey_45_kW_21','McCaffrey_57_kW_21'};
 %chid = {'McCaffrey_14_kW_45','McCaffrey_22_kW_45','McCaffrey_33_kW_45','McCaffrey_45_kW_45','McCaffrey_57_kW_45'};
 mark = {'ko','k+','k^','ksq','kd'};
 n_chid = length(chid);
@@ -63,17 +65,27 @@ for i=1:length(zs)
     Ts(i) = B(j)*zs(i)^(2*n(j)-1);
 end
 
-hh(n_chid+1)=loglog(zs,us,'b--','linewidth',2); hold on
-xmin = 0.2;
-xmax = 20;
-ymin = 1;
-ymax = 3.5;
+figure
+set(gca,'Units',Plot_Units)
+set(gca,'Position',[Plot_X Plot_Y Plot_Width Plot_Height])
+
+hh(n_chid+1)=loglog(zq,vq,'b--','linewidth',2); hold on
+% % for Baum scaling use:
+% xmin = 0.2;
+% xmax = 20;
+% ymin = 1;
+% ymax = 3.5;
+% for McCaffrey 1979 scaling use:
+xmin = 0.008;
+xmax = 0.6;
+ymin = 0.2;
+ymax = 2.5;
 axis([xmin xmax ymin ymax])
 %grid on
-%xlabel('$z/Q^{2/5}$ (m $\cdot$ kW$^{-2/5}$ )','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
-%ylabel('$V/Q^{1/5}$ (m $\cdot$ s$^{-1}$ $\cdot$ kW$^{-1/5}$ )','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
-xlabel('$z^* = z/D^*$','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
-ylabel('$v^* = v/\sqrt{g D^*} $','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
+xlabel('$z/Q^{2/5}$ (m $\cdot$ kW$^{-2/5}$ )','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
+ylabel('$V/Q^{1/5}$ (m $\cdot$ s$^{-1}$ $\cdot$ kW$^{-1/5}$ )','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
+% xlabel('$z^* = z/D^*$','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
+% ylabel('$v^* = v/\sqrt{g D^*} $','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
 
 % FDS results velocity
 
@@ -84,100 +96,100 @@ for i=1:n_chid
     z = z + dz/2; % use with "wvel" for staggered storage location
     v = M.data(:,find(strcmp('wvel',M.colheaders)));
 
-    %zq_fds = z./Q(i)^(2/5);
-    %vq_fds = v./Q(i)^(1/5);
+    % McCaffrey 1979 scaling
+    zq_fds = z./Q(i)^(2/5);
+    vq_fds = v./Q(i)^(1/5);
 
-    zs_fds = z./DS(i);
-    vs_fds = v./sqrt(g*DS(i));
+    % Baum and McCaffrey 2nd IAFSS scaling
+    % zs_fds = z./DS(i);
+    % vs_fds = v./sqrt(g*DS(i));
 
-    hh(i)=loglog(zs_fds,vs_fds,mark{i});
+    hh(i)=loglog(zq_fds,vq_fds,mark{i});
 end
+
+set(gca,'FontName',Font_Name)
+set(gca,'FontSize',Label_Font_Size)
 
 leg_key = {'14.4 kW','21.7 kW','33.0 kW','44.9 kW','57.5 kW','$A(z^*\,)^n$'};
-%leg_key = {'57.5 kW','$A(z^*\,)^n$'};
-lh = legend(hh,leg_key,'location','northwest');
+lh = legend(hh,leg_key,'location','southeast');
 set(lh,'Interpreter',Font_Interpreter)
-legend boxoff
+set(lh,'FontSize',Key_Font_Size)
 
-% add SVN if file is available
+% add version string if file is available
 
-SVN_Filename = [datadir,'McCaffrey_14_kW_11_svn.txt'];
-if exist(SVN_Filename,'file')
-    SVN = importdata(SVN_Filename);
-    x_lim = get(gca,'XLim');
-    y_lim = get(gca,'YLim');
-    X_SVN_Position = 10^( log10(x_lim(1))+ SVN_Scale_X*( log10(x_lim(2)) - log10(x_lim(1)) ) );
-    Y_SVN_Position = 10^( log10(y_lim(1))+ SVN_Scale_Y*( log10(y_lim(2)) - log10(y_lim(1)) ) );
-    text(X_SVN_Position,Y_SVN_Position,['SVN ',num2str(SVN)], ...
-        'FontSize',10,'FontName',Font_Name,'Interpreter',Font_Interpreter)
-end
+Git_Filename = [datadir,'McCaffrey_14_kW_11_git.txt'];
+addverstr(gca,Git_Filename,'loglog')
 
 % print to pdf
 
 set(gcf,'Visible',Figure_Visibility);
-set(gcf,'PaperUnits',Paper_Units);
+set(gcf,'Units',Paper_Units);
 set(gcf,'PaperSize',[Paper_Width Paper_Height]);
-set(gcf,'PaperPosition',[0 0 Paper_Width Paper_Height]);
+set(gcf,'Position',[0 0 Paper_Width Paper_Height]);
 print(gcf,'-dpdf',[plotdir,'McCaffrey_Velocity_Correlation'])
 
 
 % FDS results temperature rise
 
 figure
+set(gca,'Units',Plot_Units)
+set(gca,'Position',[Plot_X Plot_Y Plot_Width Plot_Height])
 
-hh(n_chid+1)=loglog(zs,Ts,'r--','linewidth',2); hold on
+hh(n_chid+1)=loglog(zq,Tq,'r--','linewidth',2); hold on
 
-xmin = 0.1;
-xmax = 20;
-ymin = 0.1;
-ymax = 5;
+% % Baum scaling:
+% xmin = 0.1;
+% xmax = 20;
+% ymin = 0.1;
+% ymax = 5;
+% McCaffrey scaling
+xmin = 0.008;
+xmax = 0.6;
+ymin = 100;
+ymax = 1600;
 axis([xmin xmax ymin ymax])
 %grid on
-%xlabel('$z/Q^{2/5}$ (m $\cdot$ kW$^{-2/5}$ )','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
-%ylabel('$\Delta T$ ($^\circ$C)','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
-xlabel('$z^* = z/D^*$','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
-ylabel('$\Theta^* = (T-T_0)/T_0$','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
+xlabel('$z/Q^{2/5}$ (m $\cdot$ kW$^{-2/5}$ )','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
+ylabel('$\Delta T$ ($^\circ$C)','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
+% xlabel('$z^* = z/D^*$','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
+% ylabel('$\Theta^* = (T-T_0)/T_0$','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
 
 for i=1:n_chid
     M = importdata([datadir,chid{i},'_line.csv'],',',2);
     z = M.data(:,find(strcmp('Height',M.colheaders)));
     T = M.data(:,find(strcmp('tmp',M.colheaders))) + 273.15;
-    %zq_fds = z./Q(i)^(2/5);
-    %hh(i)=loglog(zq_fds,T,mark{i});
-    hh(i)=loglog(z./DS(i),(T-T0)/T0,mark{i});
+    zq_fds = z./Q(i)^(2/5);
+    hh(i)=loglog(zq_fds,T-T0,mark{i});
+    % hh(i)=loglog(z./DS(i),(T-T0)/T0,mark{i});
 end
+
+set(gca,'FontName',Font_Name)
+set(gca,'FontSize',Label_Font_Size)
 
 leg_key = {'14.4 kW','21.7 kW','33.0 kW','44.9 kW','57.5 kW','$B(z^*\,)^{2n-1}$'};
-%leg_key = {'57.5 kW','$B(z^*\,)^{2n-1}$'};
 lh = legend(hh,leg_key,'location','southwest');
 set(lh,'Interpreter',Font_Interpreter)
-legend boxoff
+set(lh,'FontSize',Key_Font_Size)
 
-% add SVN if file is available
+% add version string if file is available
 
-SVN_Filename = [datadir,'McCaffrey_14_kW_11_svn.txt'];
-if exist(SVN_Filename,'file')
-    SVN = importdata(SVN_Filename);
-    x_lim = get(gca,'XLim');
-    y_lim = get(gca,'YLim');
-    X_SVN_Position = 10^( log10(x_lim(1))+ SVN_Scale_X*( log10(x_lim(2)) - log10(x_lim(1)) ) );
-    Y_SVN_Position = 10^( log10(y_lim(1))+ SVN_Scale_Y*( log10(y_lim(2)) - log10(y_lim(1)) ) );
-    text(X_SVN_Position,Y_SVN_Position,['SVN ',num2str(SVN)], ...
-        'FontSize',10,'FontName',Font_Name,'Interpreter',Font_Interpreter)
-end
+Git_Filename = [datadir,'McCaffrey_14_kW_11_git.txt'];
+addverstr(gca,Git_Filename,'loglog')
 
 % print to pdf
 
 set(gcf,'Visible',Figure_Visibility);
-set(gcf,'PaperUnits',Paper_Units);
+set(gcf,'Units',Paper_Units);
 set(gcf,'PaperSize',[Paper_Width Paper_Height]);
-set(gcf,'PaperPosition',[0 0 Paper_Width Paper_Height]);
+set(gcf,'Position',[0 0 Paper_Width Paper_Height]);
 print(gcf,'-dpdf',[plotdir,'McCaffrey_Temperature_Correlation'])
 
 
 % Velocity profile in the plume
 
 figure
+set(gca,'Units',Plot_Units)
+set(gca,'Position',[Plot_X Plot_Y Plot_Width Plot_Height])
 
 z = 1;
 chid = {'McCaffrey_22_kW_11','McCaffrey_22_kW_21','McCaffrey_22_kW_45'};
@@ -212,6 +224,9 @@ hh(2*length(chid)+1)=plot(x,v1,'k-');
 hh(2*length(chid)+2)=plot(x,v2,'k--');
 hh(2*length(chid)+3)=plot(x,v3,'k-.');
 
+set(gca,'FontName',Font_Name)
+set(gca,'FontSize',Label_Font_Size)
+
 axis([0 .35 0 1.2])
 xlabel('$x/z$','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
 ylabel('$V/V_0$','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
@@ -221,37 +236,32 @@ leg_key = {'22 kW 11','22 kW 21','22 kW 45',...
            '$\alpha=0.14$','$\alpha=0.16$','$\alpha=0.18$'};
 lh=legend(hh,leg_key,'location','northeast');
 set(lh,'Interpreter',Font_Interpreter)
-legend boxoff
+set(lh,'FontSize',Key_Font_Size)
 
 xt = .05;
 yt = 1.1;
 text(xt,yt,'Plume','FontSize',Title_Font_Size,'Interpreter',Font_Interpreter,'FontName',Font_Name)
 
-% add SVN if file is available
+% add version string if file is available
 
-SVN_Filename = [datadir,'McCaffrey_14_kW_11_svn.txt'];
-if exist(SVN_Filename,'file')
-    SVN = importdata(SVN_Filename);
-    x_lim = get(gca,'XLim');
-    y_lim = get(gca,'YLim');
-    X_SVN_Position = x_lim(1)+SVN_Scale_X*(x_lim(2)-x_lim(1));
-    Y_SVN_Position = y_lim(1)+SVN_Scale_Y*(y_lim(2)-y_lim(1));
-    text(X_SVN_Position,Y_SVN_Position,['SVN ',num2str(SVN)], ...
-        'FontSize',10,'FontName',Font_Name,'Interpreter',Font_Interpreter)
-end
+Git_Filename = [datadir,'McCaffrey_14_kW_11_git.txt'];
+addverstr(gca,Git_Filename,'linear')
 
 % print to pdf
 
 set(gcf,'Visible',Figure_Visibility);
-set(gcf,'PaperUnits',Paper_Units);
+set(gcf,'Units',Paper_Units);
 set(gcf,'PaperSize',[Paper_Width Paper_Height]);
-set(gcf,'PaperPosition',[0 0 Paper_Width Paper_Height]);
+set(gcf,'Position',[0 0 Paper_Width Paper_Height]);
 print(gcf,'-dpdf',[plotdir,'McCaffrey_Velocity_Profile_Plume'])
 
 
 % Velocity profile in the intermittent region
 
 figure
+set(gca,'Units',Plot_Units)
+set(gca,'Position',[Plot_X Plot_Y Plot_Width Plot_Height])
+
 clear hh
 
 z = 0.5;
@@ -282,6 +292,9 @@ x = linspace(0,2,100);
 v1 = exp(-x.^1.5);
 hh(2*length(chid)+1)=plot(x,v1,'k-');
 
+set(gca,'FontName',Font_Name)
+set(gca,'FontSize',Label_Font_Size)
+
 axis([0 3 0 1.2])
 xlabel('$x/x_{1/e}$','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
 ylabel('$V/V_0$','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
@@ -291,37 +304,32 @@ leg_key = {'22 kW 11','22 kW 21','22 kW 45',...
            '$n=3/2$'};
 lh=legend(hh,leg_key,'location','northeast');
 set(lh,'Interpreter',Font_Interpreter)
-legend boxoff
+set(lh,'FontSize',Key_Font_Size)
 
 xt = .5;
 yt = 1.1;
 text(xt,yt,'Intermittent','FontSize',Title_Font_Size,'Interpreter',Font_Interpreter,'FontName',Font_Name)
 
-% add SVN if file is available
+% add version string if file is available
 
-SVN_Filename = [datadir,'McCaffrey_14_kW_11_svn.txt'];
-if exist(SVN_Filename,'file')
-    SVN = importdata(SVN_Filename);
-    x_lim = get(gca,'XLim');
-    y_lim = get(gca,'YLim');
-    X_SVN_Position = x_lim(1)+SVN_Scale_X*(x_lim(2)-x_lim(1));
-    Y_SVN_Position = y_lim(1)+SVN_Scale_Y*(y_lim(2)-y_lim(1));
-    text(X_SVN_Position,Y_SVN_Position,['SVN ',num2str(SVN)], ...
-        'FontSize',10,'FontName',Font_Name,'Interpreter',Font_Interpreter)
-end
+Git_Filename = [datadir,'McCaffrey_14_kW_11_git.txt'];
+addverstr(gca,Git_Filename,'linear')
 
 % print to pdf
 
 set(gcf,'Visible',Figure_Visibility);
-set(gcf,'PaperUnits',Paper_Units);
+set(gcf,'Units',Paper_Units);
 set(gcf,'PaperSize',[Paper_Width Paper_Height]);
-set(gcf,'PaperPosition',[0 0 Paper_Width Paper_Height]);
+set(gcf,'Position',[0 0 Paper_Width Paper_Height]);
 print(gcf,'-dpdf',[plotdir,'McCaffrey_Velocity_Profile_Intermittent'])
 
 
 % Velocity profile in the flame region
 
 figure
+set(gca,'Units',Plot_Units)
+set(gca,'Position',[Plot_X Plot_Y Plot_Width Plot_Height])
+
 clear hh
 
 z = 0.125;
@@ -354,6 +362,9 @@ v2 = exp(-x.^2);
 hh(2*length(chid)+1)=plot(x,v1,'k-');
 hh(2*length(chid)+2)=plot(x,v2,'k--');
 
+set(gca,'FontName',Font_Name)
+set(gca,'FontSize',Label_Font_Size)
+
 axis([0 3 0 1.2])
 xlabel('$x/x_{1/e}$','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
 ylabel('$V/V_0$','FontSize',Label_Font_Size,'Interpreter',Font_Interpreter)
@@ -363,30 +374,22 @@ leg_key = {'22 kW 11','22 kW 21','22 kW 45',...
            '$n=3/2$','$n=2$'};
 lh=legend(hh,leg_key,'location','northeast');
 set(lh,'Interpreter',Font_Interpreter)
-legend boxoff
+set(lh,'FontSize',Key_Font_Size)
 
 xt = .5;
 yt = 1.1;
 text(xt,yt,'Flame','FontSize',Title_Font_Size,'Interpreter',Font_Interpreter,'FontName',Font_Name)
 
-% add SVN if file is available
+% add version string if file is available
 
-SVN_Filename = [datadir,'McCaffrey_14_kW_11_svn.txt'];
-if exist(SVN_Filename,'file')
-    SVN = importdata(SVN_Filename);
-    x_lim = get(gca,'XLim');
-    y_lim = get(gca,'YLim');
-    X_SVN_Position = x_lim(1)+SVN_Scale_X*(x_lim(2)-x_lim(1));
-    Y_SVN_Position = y_lim(1)+SVN_Scale_Y*(y_lim(2)-y_lim(1));
-    text(X_SVN_Position,Y_SVN_Position,['SVN ',num2str(SVN)], ...
-        'FontSize',10,'FontName',Font_Name,'Interpreter',Font_Interpreter)
-end
+Git_Filename = [datadir,'McCaffrey_14_kW_11_git.txt'];
+addverstr(gca,Git_Filename,'linear')
 
 % print to pdf
 
 set(gcf,'Visible',Figure_Visibility);
-set(gcf,'PaperUnits',Paper_Units);
+set(gcf,'Units',Paper_Units);
 set(gcf,'PaperSize',[Paper_Width Paper_Height]);
-set(gcf,'PaperPosition',[0 0 Paper_Width Paper_Height]);
+set(gcf,'Position',[0 0 Paper_Width Paper_Height]);
 print(gcf,'-dpdf',[plotdir,'McCaffrey_Velocity_Profile_Flame'])
 
